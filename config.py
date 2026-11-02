@@ -14,7 +14,29 @@ load_dotenv()
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
 DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 MODEL_NAME = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
-TTS_MODE = os.getenv("TEO_TTS_MODE", "fast").lower()
+TTS_MODE = os.getenv("TEO_TTS_MODE", "chipmunk").lower()
+
+PIPER_DIR = Path("models/piper")
+PIPER_PROFILES = {
+    "chipmunk": {
+        "model": PIPER_DIR / "vi_VN-diemdam-medium.onnx",
+        "length_scale": 1.42,
+        "factor": 1.55,
+        "label": "Tèo Sóc Chuột (Vui nhộn)",
+    },
+    "diemdam": {
+        "model": PIPER_DIR / "vi_VN-diemdam-medium.onnx",
+        "length_scale": 1.00,
+        "factor": 1.00,
+        "label": "Tèo Nam Trầm (Điềm đạm)",
+    },
+    "tramvang": {
+        "model": PIPER_DIR / "vi_VN-tramvang-medium.onnx",
+        "length_scale": 1.00,
+        "factor": 1.00,
+        "label": "Tèo Nam Trầm (Vang)",
+    },
+}
 
 SAMPLE_RATE = 16000
 CHUNK_DURATION = 0.1

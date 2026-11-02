@@ -1,7 +1,10 @@
 import asyncio
+import contextlib
+import io
 import re
 import time
 import urllib.parse
+import wave
 import aiohttp
 import edge_tts
 import numpy as np
@@ -10,13 +13,16 @@ import scipy.io.wavfile as wav
 import sounddevice as sd
 import speech_recognition as sr
 from langdetect import detect
+from piper.config import SynthesisConfig
+from piper.voice import PiperVoice
 
+import config
 from config import (
     CHUNK_DURATION,
     CHUNK_SAMPLES,
+    PIPER_PROFILES,
     SAMPLE_RATE,
     SPEECH_THRESHOLD,
-    TTS_MODE,
     VN_CHARS_RE,
     VOICE_MAP,
 )
@@ -129,6 +135,65 @@ def speech_to_text(audio_path: str) -> str:
         return ""
 
 
+_piper_cache: dict[str, PiperVoice] = {}
+
+
+def get_piper_voice(model_path) -> PiperVoice | None:
+    """Tải và lưu trữ vào RAM mô hình Piper ONNX tương ứng."""
+    path_str = str(model_path)
+    if path_str not in _piper_cache:
+        if model_path.exists():
+            try:
+                _piper_cache[path_str] = PiperVoice.load(path_str)
+            except Exception as e:
+                print(f"⚠️ Không tải được Piper voice {model_path.name}: {e}")
+                return None
+    return _piper_cache.get(path_str)
+
+
+def fetch_piper_tts_sync(text: str, profile_name: str = "chipmunk") -> tuple[bytes, str]:
+    """
+    Sinh âm thanh Offline bằng Piper VITS tiếng Việt đã sửa dấu.
+    Hỗ trợ chỉnh tông giọng sóc chuột hoặc giữ nguyên giọng nam trầm nguyên bản.
+    """
+    profile = PIPER_PROFILES.get(profile_name, PIPER_PROFILES["chipmunk"])
+    voice = get_piper_voice(profile["model"])
+    if not voice:
+        return b"", ""
+
+    try:
+        syn_cfg = SynthesisConfig(length_scale=profile.get("length_scale", 1.0))
+        raw_pcm = bytearray()
+        base_sr = 22050
+        with contextlib.redirect_stderr(io.StringIO()):
+            for chunk in voice.synthesize(text, syn_config=syn_cfg):
+                raw_pcm.extend(chunk.audio_int16_bytes)
+                base_sr = chunk.sample_rate
+
+        if not raw_pcm:
+            return b"", ""
+
+        factor = profile.get("factor", 1.0)
+        target_sr = int(base_sr * factor)
+
+        wav_io = io.BytesIO()
+        with wave.open(wav_io, "wb") as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(target_sr)
+            wf.writeframes(raw_pcm)
+
+        return wav_io.getvalue(), profile["label"]
+    except Exception as e:
+        print(f"⚠️ Lỗi tổng hợp Piper TTS: {e}")
+        return b"", ""
+
+
+# Khởi động sẵn mô hình mặc định vào RAM
+if "chipmunk" in PIPER_PROFILES:
+    get_piper_voice(PIPER_PROFILES["chipmunk"]["model"])
+
+
 async def fetch_google_tts_fast(
     http_session: aiohttp.ClientSession, text: str, lang: str = "vi"
 ) -> tuple[bytes, str]:
@@ -163,9 +228,10 @@ async def fetch_tts_bytes_smart(
     prefer_fast: bool = False,
 ) -> tuple[bytes, float, str, bool]:
     """
-    Cơ chế TTS đa tầng:
-    - Mặc định 'fast': Phát bằng giọng chuẩn Google cực nhanh (~150-250ms), chuẩn ngữ âm tiếng Việt và đa ngữ.
-    - Chế độ 'auto' / 'edge': Thử nghiệm EdgeTTS nếu cấu hình.
+    Cơ chế TTS đa tầng thông minh:
+    - Mặc định: Piper Offline (chipmunk, diemdam, tramvang) siêu tốc ~80-120ms, không độ trễ, không phụ thuộc mạng.
+    - Hỗ trợ chuyển đổi dễ dàng qua biến môi trường TEO_TTS_MODE.
+    - Fallback tự động sang GoogleTTS/EdgeTTS đối với ngoại ngữ (en, zh, ja).
     """
     global edge_cooldown_until
     t0 = time.perf_counter()
@@ -175,7 +241,16 @@ async def fetch_tts_bytes_smart(
 
     lang = detect_lang_fast(clean_sent)
 
-    if TTS_MODE in ("edge", "auto") and not prefer_fast and time.time() >= edge_cooldown_until:
+    # 1. Chế độ Piper Offline đa phong cách (Sóc Chuột / Nam Trầm Điềm Đạm / Nam Trầm Vang)
+    current_mode = getattr(config, "TTS_MODE", "chipmunk").lower()
+    if current_mode in PIPER_PROFILES and lang == "vi":
+        audio_bytes, voice_tag = await asyncio.to_thread(fetch_piper_tts_sync, clean_sent, current_mode)
+        if audio_bytes:
+            ms = (time.perf_counter() - t0) * 1000
+            return audio_bytes, ms, voice_tag, False
+
+    # 2. Chế độ EdgeTTS (edge, auto)
+    if current_mode in ("edge", "auto") and not prefer_fast and time.time() >= edge_cooldown_until:
         voice = VOICE_MAP.get(lang, "vi-VN-NamMinhNeural")
         timeout_sec = 0.70 if is_first_sentence else 2.2
         edge_task = asyncio.create_task(fetch_edge_tts_raw(clean_sent, voice))
@@ -191,5 +266,6 @@ async def fetch_tts_bytes_smart(
         fast_audio, fast_voice = await fast_task
         return fast_audio, (time.perf_counter() - t0) * 1000, fast_voice, True
 
+    # 3. Fallback sang Google TTS (fast / google hoặc ngoại ngữ en, zh, ja)
     fast_audio, fast_voice = await fetch_google_tts_fast(http_session, clean_sent, lang)
     return fast_audio, (time.perf_counter() - t0) * 1000, fast_voice, True
