@@ -23,9 +23,10 @@ env/
 .vscode/
 .idea/
 
-# Audio / Media temp files
+# Audio / Media / Runtime temp files
 *.mp3
 *.wav
+teo_todo.json
 
 # OS generated
 Thumbs.db
