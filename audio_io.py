@@ -1,7 +1,10 @@
 import asyncio
+import contextlib
+import io
 import re
 import time
 import urllib.parse
+import wave
 import aiohttp
 import edge_tts
 import numpy as np
@@ -10,10 +13,12 @@ import scipy.io.wavfile as wav
 import sounddevice as sd
 import speech_recognition as sr
 from langdetect import detect
+from piper.voice import PiperVoice
 
 from config import (
     CHUNK_DURATION,
     CHUNK_SAMPLES,
+    PIPER_MODELS,
     SAMPLE_RATE,
     SPEECH_THRESHOLD,
     TTS_MODE,
@@ -129,6 +134,55 @@ def speech_to_text(audio_path: str) -> str:
         return ""
 
 
+_piper_cache: dict[str, PiperVoice] = {}
+
+
+def get_piper_voice(lang: str) -> PiperVoice | None:
+    """Tải và lưu trữ vào RAM mô hình Piper ONNX tương ứng ngôn ngữ."""
+    if lang not in _piper_cache:
+        model_path = PIPER_MODELS.get(lang)
+        if model_path and model_path.exists():
+            try:
+                _piper_cache[lang] = PiperVoice.load(str(model_path))
+            except Exception as e:
+                print(f"⚠️ Không tải được Piper voice {lang}: {e}")
+                return None
+    return _piper_cache.get(lang)
+
+
+def fetch_piper_tts_sync(text: str, lang: str = "vi") -> tuple[bytes, str]:
+    """Sinh âm thanh offline siêu tốc bằng mô hình Piper Neural trên CPU."""
+    voice = get_piper_voice(lang)
+    if not voice:
+        return b"", ""
+    try:
+        raw_pcm = bytearray()
+        sample_rate = 16000
+        with contextlib.redirect_stderr(io.StringIO()):
+            for chunk in voice.synthesize(text):
+                raw_pcm.extend(chunk.audio_int16_bytes)
+                sample_rate = chunk.sample_rate
+
+        if not raw_pcm:
+            return b"", ""
+
+        wav_io = io.BytesIO()
+        with wave.open(wav_io, "wb") as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(sample_rate)
+            wf.writeframes(raw_pcm)
+
+        return wav_io.getvalue(), f"Piper ({lang})"
+    except Exception as e:
+        print(f"⚠️ Lỗi Piper TTS: {e}")
+        return b"", ""
+
+
+# Khởi động sẵn mô hình tiếng Việt vào RAM
+get_piper_voice("vi")
+
+
 async def fetch_google_tts_fast(
     http_session: aiohttp.ClientSession, text: str, lang: str = "vi"
 ) -> tuple[bytes, str]:
@@ -162,7 +216,11 @@ async def fetch_tts_bytes_smart(
     is_first_sentence: bool = True,
     prefer_fast: bool = False,
 ) -> tuple[bytes, float, str, bool]:
-    """Đua song song EdgeTTS và FastTTS với timeout 0.70s ở câu đầu để phản hồi tức thì."""
+    """
+    Cơ chế TTS đa tầng thông minh:
+    - Chế độ 'piper' (mặc định): Chạy 100% offline cục bộ (tiếng Việt & tiếng Anh ~50-120ms).
+    - Tự động fallback sang FastTTS/EdgeTTS nếu ngôn ngữ chưa có mô hình offline.
+    """
     global edge_cooldown_until
     t0 = time.perf_counter()
     clean_sent = clean_for_tts(sentence)
@@ -170,8 +228,17 @@ async def fetch_tts_bytes_smart(
         return b"", 0.0, "", prefer_fast
 
     lang = detect_lang_fast(clean_sent)
+
+    # 1. Ưu tiên Piper Offline TTS nếu được cấu hình hoặc nếu có model ngôn ngữ này
+    if TTS_MODE == "piper" or lang in PIPER_MODELS:
+        audio_bytes, voice_tag = await asyncio.to_thread(fetch_piper_tts_sync, clean_sent, lang)
+        if audio_bytes:
+            ms = (time.perf_counter() - t0) * 1000
+            return audio_bytes, ms, voice_tag, False
+
+    # 2. Xử lý EdgeTTS nếu cấu hình edge/auto
     voice = VOICE_MAP.get(lang, "vi-VN-NamMinhNeural")
-    use_edge = (TTS_MODE != "fast") and (not prefer_fast) and (time.time() >= edge_cooldown_until)
+    use_edge = (TTS_MODE in ("edge", "auto")) and (not prefer_fast) and (time.time() >= edge_cooldown_until)
 
     if use_edge:
         timeout_sec = 0.70 if is_first_sentence else 2.2
@@ -188,5 +255,6 @@ async def fetch_tts_bytes_smart(
         fast_audio, fast_voice = await fast_task
         return fast_audio, (time.perf_counter() - t0) * 1000, fast_voice, True
 
+    # 3. Fallback sang FastTTS
     fast_audio, fast_voice = await fetch_google_tts_fast(http_session, clean_sent, lang)
     return fast_audio, (time.perf_counter() - t0) * 1000, fast_voice, True

@@ -28,6 +28,11 @@ env/
 *.wav
 teo_todo.json
 
+# Local AI Models (Piper ONNX weights)
+models/
+*.onnx
+*.onnx.json
+
 # OS generated
 Thumbs.db
 Desktop.ini
