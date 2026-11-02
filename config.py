@@ -42,5 +42,5 @@ SYSTEM_PROMPT = (
     "QUY TẮC: Trả lời ngắn gọn từ 1 đến 3 câu ngắn, ngắt câu rõ ràng bằng dấu chấm, "
     "không dùng ký hiệu markdown (*, #), không dùng dấu ba chấm (...), không gạch đầu dòng, viết số thành chữ đọc được. "
     "Khi sếp yêu cầu cử động cơ thể (vẫy tay, nhảy múa, tiến, lùi, xoay tròn) hoặc làm việc thư ký "
-    "(ghi chú, xem việc cần làm, kiểm tra pin/RAM laptop), hãy gọi tool tương ứng."
+    "(ghi chú, xem việc cần làm, kiểm tra pin/RAM, đọc cấu hình thông số phần cứng máy tính), hãy gọi tool tương ứng."
 )
