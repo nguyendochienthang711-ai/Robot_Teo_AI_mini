@@ -1,0 +1,82 @@
+<mujoco model="teo_walle">
+  <option timestep="0.005" gravity="0 0 -9.81"/>
+
+  <visual>
+    <headlight ambient="0.4 0.4 0.4" diffuse="0.8 0.8 0.8" specular="0.1 0.1 0.1"/>
+    <rgba haze="0.15 0.25 0.35 1"/>
+  </visual>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1="0.2 0.3 0.4" rgb2="0.05 0.08 0.12" width="512" height="512"/>
+    <texture name="grid" type="2d" builtin="checker" rgb1="0.18 0.22 0.28" rgb2="0.25 0.30 0.38" width="512" height="512"/>
+    <material name="mat_grid" texture="grid" texrepeat="8 8" reflectance="0.1"/>
+    <material name="mat_body" rgba="0.92 0.68 0.15 1"/>      <!-- Màu vàng WALL-E -->
+    <material name="mat_track" rgba="0.18 0.18 0.20 1"/>     <!-- Màu xám đen bánh xích -->
+    <material name="mat_screen" rgba="0.05 0.08 0.12 1"/>    <!-- Màn hình LCD ST7789 -->
+    <material name="mat_eye" rgba="0.0 0.85 1.0 1"/>         <!-- Đôi mắt LED xanh -->
+    <material name="mat_arm" rgba="0.75 0.75 0.78 1"/>       <!-- Tay kim loại -->
+  </asset>
+
+  <worldbody>
+    <!-- Mặt bàn làm việc -->
+    <geom name="table_floor" type="plane" size="1 1 0.05" material="mat_grid"/>
+    <light pos="0 -0.5 1.2" dir="0 0.5 -1" directional="true"/>
+
+    <!-- Thân chính của Tèo (Rộng 9cm, Sâu 8cm, Cao ~9cm) -->
+    <body name="chassis" pos="0 0 0.065">
+      <freejoint name="root"/>
+      <geom name="torso_box" type="box" size="0.04 0.045 0.042" material="mat_body" mass="0.35"/>
+      <!-- Bảng ngực trang trí -->
+      <geom name="chest_panel" type="box" pos="0.041 0 0.01" size="0.002 0.03 0.02" rgba="0.3 0.3 0.32 1" mass="0.01"/>
+
+      <!-- Đế bánh xích Trái (Left Track) -->
+      <body name="left_wheel_link" pos="0 0.052 -0.03">
+        <joint name="left_track_joint" type="hinge" axis="0 1 0" damping="0.05"/>
+        <geom name="left_wheel" type="cylinder" size="0.035 0.01" euler="90 0 0" material="mat_track" mass="0.08" friction="1.2 0.005 0.0001"/>
+      </body>
+
+      <!-- Đế bánh xích Phải (Right Track) -->
+      <body name="right_wheel_link" pos="0 -0.052 -0.03">
+        <joint name="right_track_joint" type="hinge" axis="0 1 0" damping="0.05"/>
+        <geom name="right_wheel" type="cylinder" size="0.035 0.01" euler="90 0 0" material="mat_track" mass="0.08" friction="1.2 0.005 0.0001"/>
+      </body>
+
+      <!-- Bánh phụ cân bằng trước/sau (ẩn dưới gầm xích) -->
+      <geom name="front_caster" type="sphere" pos="0.032 0 -0.055" size="0.01" rgba="0.2 0.2 0.2 0" friction="0.01 0.001 0.0001" mass="0.02"/>
+      <geom name="rear_caster" type="sphere" pos="-0.032 0 -0.055" size="0.01" rgba="0.2 0.2 0.2 0" friction="0.01 0.001 0.0001" mass="0.02"/>
+
+      <!-- Servo 1: Cổ và Đầu gắn màn hình LCD hai mắt -->
+      <body name="head_neck" pos="0 0 0.055">
+        <joint name="neck_yaw" type="hinge" axis="0 0 1" range="-70 70" damping="0.1"/>
+        <geom name="neck_post" type="cylinder" size="0.01 0.015" rgba="0.5 0.5 0.5 1" mass="0.02"/>
+        <!-- Hộp đầu chứa LCD ST7789 -->
+        <geom name="head_box" type="box" pos="0.005 0 0.025" size="0.022 0.036 0.02" material="mat_body" mass="0.05"/>
+        <geom name="lcd_screen" type="box" pos="0.028 0 0.025" size="0.002 0.03 0.015" material="mat_screen" mass="0.005"/>
+        <!-- Hai mắt hoạt hình trên màn hình -->
+        <geom name="eye_left" type="cylinder" pos="0.031 0.014 0.025" size="0.008 0.001" euler="0 90 0" material="mat_eye" mass="0.001"/>
+        <geom name="eye_right" type="cylinder" pos="0.031 -0.014 0.025" size="0.008 0.001" euler="0 90 0" material="mat_eye" mass="0.001"/>
+      </body>
+
+      <!-- Servo 2: Cánh tay Trái -->
+      <body name="left_arm" pos="0.01 0.055 0.015">
+        <joint name="left_arm_pitch" type="hinge" axis="0 1 0" range="-90 90" damping="0.08"/>
+        <geom name="l_arm_geom" type="box" pos="0.025 0 0" size="0.028 0.006 0.008" material="mat_arm" mass="0.02"/>
+      </body>
+
+      <!-- Servo 3: Cánh tay Phải -->
+      <body name="right_arm" pos="0.01 -0.055 0.015">
+        <joint name="right_arm_pitch" type="hinge" axis="0 1 0" range="-90 90" damping="0.08"/>
+        <geom name="r_arm_geom" type="box" pos="0.025 0 0" size="0.028 0.006 0.008" material="mat_arm" mass="0.02"/>
+      </body>
+    </body>
+  </worldbody>
+
+  <!-- Bộ truyền động (3 Servo MG90S + 2 Motor bánh xích qua PCA9685) -->
+  <actuator>
+    <position name="servo_neck" joint="neck_yaw" kp="2.5" ctrlrange="-1.2 1.2"/>
+    <position name="servo_left_arm" joint="left_arm_pitch" kp="2.0" ctrlrange="-1.5 1.5"/>
+    <position name="servo_right_arm" joint="right_arm_pitch" kp="2.0" ctrlrange="-1.5 1.5"/>
+    <velocity name="motor_left_track" joint="left_track_joint" kv="1.0" ctrlrange="-10 10"/>
+    <velocity name="motor_right_track" joint="right_track_joint" kv="1.0" ctrlrange="-10 10"/>
+  </actuator>
+</mujoco>

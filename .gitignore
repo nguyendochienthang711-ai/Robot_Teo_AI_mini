@@ -1,0 +1,33 @@
+# Environments and Secrets
+.env
+.env.*
+*.env
+!.env.example
+
+# Python cache & build
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+dist/
+*.egg-info/
+
+# Virtual environments
+venv/
+.venv/
+ENV/
+env/
+
+# IDE / Editor
+.vscode/
+.idea/
+
+# Audio / Media temp files
+*.mp3
+*.wav
+
+# OS generated
+Thumbs.db
+Desktop.ini
+.DS_Store
