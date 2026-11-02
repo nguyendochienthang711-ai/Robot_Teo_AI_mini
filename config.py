@@ -14,13 +14,7 @@ load_dotenv()
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
 DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 MODEL_NAME = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
-TTS_MODE = os.getenv("TEO_TTS_MODE", "piper").lower()
-
-PIPER_DIR = Path("models/piper")
-PIPER_MODELS = {
-    "vi": PIPER_DIR / "vi_VN-vivos-x_low.onnx",
-    "en": PIPER_DIR / "en_US-lessac-medium.onnx",
-}
+TTS_MODE = os.getenv("TEO_TTS_MODE", "fast").lower()
 
 SAMPLE_RATE = 16000
 CHUNK_DURATION = 0.1
