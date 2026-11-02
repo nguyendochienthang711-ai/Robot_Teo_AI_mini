@@ -1,6 +1,13 @@
 import asyncio
 import os
+import sys
 import time
+
+# Thiết lập stdout/stderr UTF-8 để in tiếng Việt không bị lỗi charmap trên Windows console
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 import edge_tts
 import pygame
 from langdetect import detect
