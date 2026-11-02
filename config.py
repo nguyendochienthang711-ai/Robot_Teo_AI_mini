@@ -46,13 +46,6 @@ SPEECH_THRESHOLD = 450
 UDP_SIM_TARGET = ("127.0.0.1", 5555)
 TODO_FILE = Path("teo_todo.json")
 
-VOICE_MAP = {
-    "vi": "vi-VN-NamMinhNeural",
-    "en": "en-US-AvaNeural",
-    "zh-cn": "zh-CN-XiaoxiaoNeural",
-    "ja": "ja-JP-NanamiNeural",
-}
-
 VN_CHARS_RE = re.compile(
     r"[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]",
     re.IGNORECASE,

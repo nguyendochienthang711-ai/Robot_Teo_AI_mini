@@ -6,7 +6,6 @@ import time
 import urllib.parse
 import wave
 import aiohttp
-import edge_tts
 import numpy as np
 import pygame
 import scipy.io.wavfile as wav
@@ -24,7 +23,6 @@ from config import (
     SAMPLE_RATE,
     SPEECH_THRESHOLD,
     VN_CHARS_RE,
-    VOICE_MAP,
 )
 
 # Thử nạp pycaw để tự động hạ nhỏ nhạc trình duyệt khi Tèo đang nghe
@@ -36,8 +34,6 @@ except Exception:
 
 pygame.mixer.init()
 recognizer = sr.Recognizer()
-edge_lock = asyncio.Lock()
-edge_cooldown_until = 0.0
 
 try:
     detect("Khởi động hệ thống tiếng Việt")
@@ -210,17 +206,6 @@ async def fetch_google_tts_fast(
     return b"", f"GoogleTTS ({tl})"
 
 
-async def fetch_edge_tts_raw(text: str, voice: str) -> bytes:
-    """Gọi EdgeTTS tuần tự qua khóa độc quyền."""
-    async with edge_lock:
-        comm = edge_tts.Communicate(text=text, voice=voice, rate="+10%")
-        buf = bytearray()
-        async for chunk in comm.stream():
-            if chunk["type"] == "audio":
-                buf.extend(chunk["data"])
-        return bytes(buf)
-
-
 async def fetch_tts_bytes_smart(
     http_session: aiohttp.ClientSession,
     sentence: str,
@@ -228,12 +213,11 @@ async def fetch_tts_bytes_smart(
     prefer_fast: bool = False,
 ) -> tuple[bytes, float, str, bool]:
     """
-    Cơ chế TTS đa tầng thông minh:
-    - Mặc định: Piper Offline (chipmunk, diemdam, tramvang) siêu tốc ~80-120ms, không độ trễ, không phụ thuộc mạng.
-    - Hỗ trợ chuyển đổi dễ dàng qua biến môi trường TEO_TTS_MODE.
-    - Fallback tự động sang GoogleTTS/EdgeTTS đối với ngoại ngữ (en, zh, ja).
+    Cơ chế TTS gọn nhẹ và ổn định tuyệt đối:
+    - Piper Offline (chipmunk, diemdam, tramvang) siêu tốc ~60-120ms, không độ trễ, không phụ thuộc mạng.
+    - Chuyển đổi dễ dàng qua biến môi trường TEO_TTS_MODE.
+    - Fallback trực tiếp sang Google TTS cho chế độ google hoặc ngoại ngữ (en, zh, ja).
     """
-    global edge_cooldown_until
     t0 = time.perf_counter()
     clean_sent = clean_for_tts(sentence)
     if not re.search(r"\w", clean_sent):
@@ -249,23 +233,6 @@ async def fetch_tts_bytes_smart(
             ms = (time.perf_counter() - t0) * 1000
             return audio_bytes, ms, voice_tag, False
 
-    # 2. Chế độ EdgeTTS (edge, auto)
-    if current_mode in ("edge", "auto") and not prefer_fast and time.time() >= edge_cooldown_until:
-        voice = VOICE_MAP.get(lang, "vi-VN-NamMinhNeural")
-        timeout_sec = 0.70 if is_first_sentence else 2.2
-        edge_task = asyncio.create_task(fetch_edge_tts_raw(clean_sent, voice))
-        fast_task = asyncio.create_task(fetch_google_tts_fast(http_session, clean_sent, lang))
-
-        done, _ = await asyncio.wait({edge_task}, timeout=timeout_sec)
-        if edge_task in done and not edge_task.exception() and edge_task.result():
-            fast_task.cancel()
-            return edge_task.result(), (time.perf_counter() - t0) * 1000, voice, False
-
-        edge_task.cancel()
-        edge_cooldown_until = time.time() + 90.0
-        fast_audio, fast_voice = await fast_task
-        return fast_audio, (time.perf_counter() - t0) * 1000, fast_voice, True
-
-    # 3. Fallback sang Google TTS (fast / google hoặc ngoại ngữ en, zh, ja)
+    # 2. Google TTS (khi chọn TEO_TTS_MODE=google hoặc khi là ngoại ngữ en, zh, ja)
     fast_audio, fast_voice = await fetch_google_tts_fast(http_session, clean_sent, lang)
     return fast_audio, (time.perf_counter() - t0) * 1000, fast_voice, True
