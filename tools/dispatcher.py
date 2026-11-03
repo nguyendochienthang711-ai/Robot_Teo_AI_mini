@@ -13,6 +13,7 @@ from typing import Any
 
 from jsonschema import Draft202012Validator
 
+from tools.guardrails import describe_hitl_action, set_pending_action
 from tools.policy import (
     MAX_CALLS_PER_TURN,
     TOOL_SPECS,
@@ -110,6 +111,21 @@ def run_tool(func_name: str, args_json: str, ctx: TurnContext | None = None) -> 
         return _fail(func_name, args, ctx,
                      "ERROR security_policy: untrusted data was read in this turn. "
                      "Ask the user to confirm physically before this action.")
+
+    # Human-in-the-Loop (HITL) gate for sensitive laptop data operations
+    if ctx.require_hitl and not ctx.confirmed:
+        hitl_desc = describe_hitl_action(func_name, args)
+        if hitl_desc:
+            set_pending_action(func_name, json.dumps(args, ensure_ascii=False), hitl_desc)
+            log.info("HITL confirmation requested for %s: %s", func_name, hitl_desc)
+            audit_log(func_name, args, True, ctx.tainted, 0)
+            return ToolResult(
+                text=(
+                    f"PENDING_HITL_CONFIRMATION: Thao tác '{hitl_desc}' cần sếp cho phép. "
+                    f"Hãy hỏi ngắn gọn: 'Sếp có đồng ý cho em {hitl_desc} không?' và chờ sếp trả lời OK hoặc Đồng ý."
+                ),
+                ok=True,
+            )
 
     spec = TOOL_SPECS.get(func_name)
     try:

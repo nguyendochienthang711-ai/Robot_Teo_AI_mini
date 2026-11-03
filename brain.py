@@ -18,10 +18,18 @@ from audio_io import (
 from config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, MODEL_NAME, SYSTEM_PROMPT
 from tools import TOOLS_SCHEMA, ToolResult, TurnContext, run_tool
 from tools.documents import _split_into_sentences, _wrap_long
+from tools.guardrails import (
+    check_input_guardrail,
+    clear_pending_action,
+    detect_hitl_intent,
+    get_pending_action,
+    sanitize_output_guardrail,
+)
 
 log = logging.getLogger("teo.brain")
 
 SENT_RE = re.compile(r"(?<![.\d])([.!?])(?![.\d])\s+")
+_SYS_TIME_PREFIX_RE = re.compile(r"^\[Giờ hệ thống:[^\]]+\]\s*")
 
 TOOL_TIMEOUT: dict[str, float] = {
     "nhin_man_hinh_laptop": 25.0,
@@ -82,8 +90,10 @@ async def stream_llm_and_speak(
     user_message: str | None = None,
 ) -> str:
     """
-    3-tier Streaming Pipeline with transactional history, TurnContext policy,
-    async tool execution with timeouts, and direct TTS speaking (R-01..R-07).
+    3-tier Streaming Pipeline with:
+    - Input & Output Guardrails (DLP secret redaction & prompt injection filter)
+    - Human-in-the-Loop (HITL) voice/text confirmation ("OK" / "Đồng ý") for laptop data operations
+    - Transactional chat_history, async tool execution with timeouts, and direct TTS speaking.
     """
     _abort_speaking.clear()
     t_turn = time.perf_counter()
@@ -91,13 +101,31 @@ async def stream_llm_and_speak(
     audio_queue: asyncio.Queue[tuple[int, SpeakItem, bytes, float, str] | None] = asyncio.Queue()
     full_reply_parts: list[str] = []
 
-    # Transactional working copy of chat_history so mid-turn errors never corrupt history (R-04)
+    raw_user_utterance = ""
+    if user_message is not None:
+        raw_user_utterance = _SYS_TIME_PREFIX_RE.sub("", user_message).strip()
+        allowed_in, cleaned_or_reason = check_input_guardrail(raw_user_utterance)
+        if not allowed_in:
+            # Speak guardrail rejection directly without calling LLM (0 tokens used)
+            async def _speak_rejection():
+                await sentence_queue.put(SpeakItem(text=cleaned_or_reason))
+                await sentence_queue.put(None)
+
+            # Reuse tts_worker and player_worker below
+            user_message = None
+            raw_user_utterance = f"__GUARDRAIL_REJECT__:{cleaned_or_reason}"
+
     working_history: list[dict] = list(chat_history)
     if user_message is not None:
         working_history.append({"role": "user", "content": user_message})
 
-    ctx = TurnContext()
+    ctx = TurnContext(require_hitl=True)
     turn_succeeded = False
+
+    async def _enqueue_safe_sentence(text: str, on_done: Callable[[], None] | None = None) -> None:
+        safe_text = sanitize_output_guardrail(text)
+        if safe_text:
+            await sentence_queue.put(SpeakItem(text=safe_text, on_done=on_done))
 
     async def _emit_sentences_from_buf(buf: str, first_emitted: bool, label: str) -> tuple[str, bool]:
         """Extract all completed sentences from buffer and enqueue for TTS (R-06)."""
@@ -110,19 +138,78 @@ async def stream_llm_and_speak(
             if not first_emitted:
                 first_emitted = True
                 llm_first_ms = (time.perf_counter() - t_turn) * 1000
-                print(f"🧠 [{label} ({llm_first_ms:.0f} ms)]: \"{sent}\"")
-            await sentence_queue.put(SpeakItem(text=sent))
+                print(f"🧠 [{label} ({llm_first_ms:.0f} ms)]: \"{sanitize_output_guardrail(sent)}\"")
+            await _enqueue_safe_sentence(sent)
         return buf, first_emitted
 
     async def llm_producer():
         nonlocal turn_succeeded
         client = get_llm_client()
         try:
+            # 1. Handle Input Guardrail rejection fast-path
+            if raw_user_utterance.startswith("__GUARDRAIL_REJECT__:"):
+                reason = raw_user_utterance.split(":", 1)[1]
+                full_reply_parts.append(reason)
+                await _enqueue_safe_sentence(reason)
+                return
+
+            # 2. Check if user is responding ("OK" / "Đồng ý" / "Hủy") to a pending HITL action
+            pending = get_pending_action()
+            if pending is not None and raw_user_utterance:
+                intent = detect_hitl_intent(raw_user_utterance)
+                if intent == "reject":
+                    clear_pending_action()
+                    cancel_msg = f"Dạ vâng, em đã hủy thao tác {pending.description_vi} theo ý sếp."
+                    full_reply_parts.append(cancel_msg)
+                    await _enqueue_safe_sentence(cancel_msg)
+                    turn_succeeded = True
+                    return
+                elif intent == "confirm":
+                    clear_pending_action()
+                    ctx.confirmed = True
+                    timeout_sec = TOOL_TIMEOUT.get(pending.func_name, DEFAULT_TOOL_TIMEOUT)
+                    try:
+                        res: ToolResult = await asyncio.wait_for(
+                            asyncio.to_thread(run_tool, pending.func_name, pending.args_json, ctx),
+                            timeout=timeout_sec,
+                        )
+                    except asyncio.TimeoutError:
+                        res = ToolResult(
+                            text=f"ERROR tool_timeout: {pending.func_name} timed out after {timeout_sec}s.",
+                            ok=False,
+                        )
+
+                    if res.speak and not _abort_speaking.is_set():
+                        raw_sents = _split_into_sentences(res.speak) or [res.speak]
+                        speak_chunks = [p for s in raw_sents for p in _wrap_long(s, limit=180)] or [res.speak]
+                        for i, piece in enumerate(speak_chunks):
+                            cb = res.commit if (i == len(speak_chunks) - 1) else None
+                            await _enqueue_safe_sentence(piece, on_done=cb)
+                        confirm_msg = f"Em đang đọc tài liệu cho sếp ngay đây ạ."
+                        full_reply_parts.append(confirm_msg)
+                        turn_succeeded = True
+                        return
+                    else:
+                        if res.commit:
+                            try:
+                                res.commit()
+                            except Exception:
+                                log.exception("Commit callback error")
+                        working_history.append(
+                            {
+                                "role": "user",
+                                "content": (
+                                    f"[Sếp đã xác nhận ĐỒNG Ý cho phép {pending.description_vi}. "
+                                    f"Kết quả thực thi công cụ {pending.func_name}]: {res.text}"
+                                ),
+                            }
+                        )
+
+            # 3. Normal LLM streaming + multi-round tool loop
             for round_idx in range(MAX_TOOL_ROUNDS + 1):
                 if _abort_speaking.is_set():
                     break
 
-                # Always send tools=TOOLS_SCHEMA to preserve prompt cache prefix across rounds (R-07)
                 stream = await client.chat.completions.create(
                     model=MODEL_NAME,
                     messages=working_history,
@@ -169,14 +256,13 @@ async def stream_llm_and_speak(
                     sent = buf.strip()
                     if not first_sent_emitted:
                         llm_first_ms = (time.perf_counter() - t_turn) * 1000
-                        print(f"🧠 [DeepSeek Stream Câu 1 ({llm_first_ms:.0f} ms)]: \"{sent}\"")
-                    await sentence_queue.put(SpeakItem(text=sent))
+                        print(f"🧠 [DeepSeek Stream Câu 1 ({llm_first_ms:.0f} ms)]: \"{sanitize_output_guardrail(sent)}\"")
+                    await _enqueue_safe_sentence(sent)
                     buf = ""
 
                 if not tool_calls_acc:
                     break
 
-                # Record assistant tool_calls in working history
                 assistant_tc_msg = {
                     "role": "assistant",
                     "content": "".join(round_text_parts) or None,
@@ -192,7 +278,6 @@ async def stream_llm_and_speak(
                 working_history.append(assistant_tc_msg)
                 full_reply_parts.clear()
 
-                # Execute each tool call off the event loop with per-tool timeout & shared TurnContext (R-01, R-02)
                 for v in tool_calls_acc.values():
                     t_name = v["name"]
                     t_args = v["args"]
@@ -202,7 +287,7 @@ async def stream_llm_and_speak(
                         stop_speaking()
 
                     try:
-                        res: ToolResult = await asyncio.wait_for(
+                        res = await asyncio.wait_for(
                             asyncio.to_thread(run_tool, t_name, t_args, ctx),
                             timeout=timeout_sec,
                         )
@@ -213,13 +298,12 @@ async def stream_llm_and_speak(
                             ok=False,
                         )
 
-                    # Direct TTS path (R-03, R-16): stream sentences straight to TTS and commit bookmark after speech
                     if res.speak and not _abort_speaking.is_set():
                         raw_sents = _split_into_sentences(res.speak) or [res.speak]
                         speak_chunks = [p for s in raw_sents for p in _wrap_long(s, limit=180)] or [res.speak]
                         for i, piece in enumerate(speak_chunks):
                             cb = res.commit if (i == len(speak_chunks) - 1) else None
-                            await sentence_queue.put(SpeakItem(text=piece, on_done=cb))
+                            await _enqueue_safe_sentence(piece, on_done=cb)
                         llm_tool_text = (
                             "Direct TTS is already reading the requested document sentences aloud to the user. "
                             "Reply with at most one short confirmation sentence."
@@ -274,7 +358,6 @@ async def stream_llm_and_speak(
 
             await asyncio.to_thread(play_audio_bytes_sync, audio_bytes, _abort_speaking)
 
-            # Only commit bookmark if sentence finished without being aborted (R-03, R-16)
             if speak_item.on_done and not _abort_speaking.is_set():
                 try:
                     speak_item.on_done()
@@ -285,7 +368,7 @@ async def stream_llm_and_speak(
 
     await asyncio.gather(llm_producer(), tts_worker(), player_worker())
 
-    final_reply = "".join(full_reply_parts).strip()
+    final_reply = sanitize_output_guardrail("".join(full_reply_parts).strip())
     if turn_succeeded:
         if final_reply:
             working_history.append({"role": "assistant", "content": final_reply})

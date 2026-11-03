@@ -74,6 +74,11 @@ AUDIT_LOG_FILE = LOGS_DIR / "tool_audit.jsonl"
 VISION_MODEL = os.getenv("VISION_MODEL", "deepseek-flash")
 DEFAULT_CITY = os.getenv("TEO_DEFAULT_CITY", "Ha Noi")
 
+# Wi-Fi / UDP HMAC-SHA256 shared secret & HITL settings
+WIFI_SHARED_SECRET = os.getenv("TEO_WIFI_SECRET", "teo-local-hmac-secret-2026")
+WIFI_TIMESTAMP_TOLERANCE_SEC = 5.0
+HITL_CONFIRM_TIMEOUT_SEC = 90.0
+
 # Document security & privacy allowlists (TL-01)
 ALLOWED_DOC_DIRS = [
     Path.home() / "Documents",

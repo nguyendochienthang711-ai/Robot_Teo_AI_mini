@@ -12,9 +12,10 @@ _io_lock = threading.RLock()
 
 
 def _strip_accents(s: str) -> str:
-    """Strip Vietnamese accents for resilient matching."""
+    """Strip Vietnamese accents (including đ/Đ) for resilient matching."""
     if not s:
         return ""
+    s = s.replace("đ", "d").replace("Đ", "D")
     nfkd = unicodedata.normalize("NFKD", s)
     return "".join(c for c in nfkd if not unicodedata.combining(c)).lower().strip()
 

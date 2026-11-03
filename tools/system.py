@@ -21,6 +21,7 @@ import psutil
 import config
 from config import PIPER_PROFILES, UDP_SIM_TARGET
 from tools.common import update_json
+from tools.guardrails import sign_wifi_packet, verify_wifi_packet
 
 if sys.platform == "win32":
     import winreg
@@ -111,22 +112,36 @@ def build_motion(motion: str, duration: Any, bpm: Any, is_omni: bool = False) ->
 
 
 def send_motion_to_3d_sim(motion: str, duration: float = 3.0, bpm: int = 120, timeout: float = 0.4) -> bool:
-    """Send UDP motion packet to 3D MuJoCo sim with 2-way ACK check (TL-03)."""
+    """Send HMAC-SHA256 signed UDP motion packet to 3D MuJoCo sim / ESP32-S3 with authenticated 2-way ACK."""
     msg_id = uuid.uuid4().hex[:8]
-    payload = json.dumps({
-        "id": msg_id,
-        "motion": motion,
-        "duration": duration,
-        "bpm": bpm,
-    }).encode("utf-8")
+    signed_pkt = sign_wifi_packet(
+        {
+            "id": msg_id,
+            "motion": motion,
+            "duration": duration,
+            "bpm": bpm,
+        },
+        role="laptop_controller",
+    )
+    payload = json.dumps(signed_pkt).encode("utf-8")
 
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
             s.settimeout(timeout)
             s.sendto(payload, UDP_SIM_TARGET)
-            data, _ = s.recvfrom(256)
+            data, _ = s.recvfrom(512)
             ack_msg = json.loads(data.decode("utf-8"))
-            return ack_msg.get("ack") == msg_id
+            if ack_msg.get("ack") != msg_id:
+                return False
+            # Verify HMAC-SHA256 signature if present (mandatory on Wi-Fi nodes)
+            if "sig" in ack_msg:
+                valid, _ = verify_wifi_packet(
+                    ack_msg,
+                    expected_role="robot_node",
+                    required_permission="ack",
+                )
+                return valid
+            return True
     except (OSError, ValueError):
         return False
 

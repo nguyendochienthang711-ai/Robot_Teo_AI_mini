@@ -6,6 +6,8 @@ import time
 import mujoco
 import mujoco.viewer
 
+from tools.guardrails import sign_wifi_packet, verify_wifi_packet
+
 # Mở socket UDP không chặn (non-blocking) để nhận lệnh từ Tools / FastMCP
 UDP_IP = "127.0.0.1"
 UDP_PORT = 5555
@@ -181,9 +183,21 @@ def main():
                 cmd = json.loads(raw_bytes.decode("utf-8", errors="replace"))
                 if not isinstance(cmd, dict):
                     raise ValueError("UDP payload must be a JSON object")
+
+                # Verify Wi-Fi / UDP HMAC-SHA256 signature, timestamp, anti-replay, and role permission
+                ok_auth, reason = verify_wifi_packet(
+                    cmd,
+                    expected_role="laptop_controller",
+                    required_permission="motion_cmd",
+                )
+                if not ok_auth:
+                    print(f"[Sim Security Blocked]: Từ chối gói UDP không hợp lệ ({reason})")
+                    continue
+
                 if cmd.get("id"):
                     try:
-                        sock.sendto(json.dumps({"ack": cmd.get("id")}).encode("utf-8"), addr)
+                        ack_pkt = sign_wifi_packet({"ack": cmd.get("id")}, role="robot_node")
+                        sock.sendto(json.dumps(ack_pkt).encode("utf-8"), addr)
                     except OSError:
                         pass
                 motion = str(cmd.get("motion", "idle"))

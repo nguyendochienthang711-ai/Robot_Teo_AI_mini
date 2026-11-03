@@ -32,7 +32,8 @@ class ToolSpec:
 class TurnContext:
     tainted: bool = False
     calls: int = 0
-    confirmed: bool = False                    # Set via external hardware/hotkey confirmation
+    confirmed: bool = False                    # Set when user explicitly confirms ("OK" / "Đồng ý")
+    require_hitl: bool = False                 # Enabled in live conversation turns to enforce HITL
     log: list = field(default_factory=list)
 
 
