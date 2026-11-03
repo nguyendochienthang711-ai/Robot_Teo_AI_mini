@@ -50,7 +50,7 @@
     <body name="chassis" pos="0 0 0.068">
       <freejoint name="root"/>
 
-      <geom name="omni_base_plate" type="cylinder" pos="0 0 -0.032" size="0.055 0.004" material="mat_walle_dark" mass="0.12"/>
+      <geom name="omni_base_plate" type="cylinder" pos="0 0 -0.032" size="0.055 0.004" material="mat_walle_dark" mass="0.30"/>
       <geom name="omni_base_top" type="cylinder" pos="0 0 -0.026" size="0.052 0.002" material="mat_metal_plate" mass="0.03"/>
 
       <!-- 3 IR sensors -->
@@ -73,6 +73,8 @@
       <geom name="omni_pad_1" type="sphere" pos="0.045 0 -0.058" size="0.010" rgba="0 0 0 0" friction="0.01 0.001 0.0001" mass="0.02"/>
       <geom name="omni_pad_2" type="sphere" pos="-0.0225 0.039 -0.058" size="0.010" rgba="0 0 0 0" friction="0.01 0.001 0.0001" mass="0.02"/>
       <geom name="omni_pad_3" type="sphere" pos="-0.0225 -0.039 -0.058" size="0.010" rgba="0 0 0 0" friction="0.01 0.001 0.0001" mass="0.02"/>
+      <!-- Đệm chống lật ngửa phía sau (Anti-tip tail pad) -->
+      <geom name="omni_pad_tail" type="sphere" pos="-0.045 0 -0.058" size="0.010" rgba="0 0 0 0" friction="0.01 0.001 0.0001" mass="0.02"/>
 
       <!-- 3 Omni Wheels -->
       <body name="omni_wheel_1" pos="0.048 0 -0.044" euler="0 0 0">
@@ -106,7 +108,7 @@
       </body>
 
       <!-- Thân hộp WALL-E -->
-      <geom name="torso_box" type="box" pos="0 0 0.01" size="0.038 0.042 0.038" material="mat_walle_yellow" mass="0.25"/>
+      <geom name="torso_box" type="box" pos="0 0 0.01" size="0.038 0.042 0.038" material="mat_walle_yellow" mass="0.10"/>
       <geom name="chest_panel" type="box" pos="0.039 0 0.012" size="0.002 0.028 0.018" material="mat_walle_dark" mass="0.01"/>
       <geom name="chest_meter" type="box" pos="0.040 0.012 0.012" size="0.0015 0.010 0.006" rgba="0.95 0.75 0.1 1" mass="0.001"/>
       <geom name="chest_led" type="sphere" pos="0.040 -0.015 0.012" size="0.003" rgba="0.1 0.9 0.2 1" mass="0.001"/>

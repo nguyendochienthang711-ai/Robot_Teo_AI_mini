@@ -141,13 +141,21 @@ def apply_motion_bundle(data, t: float, state: dict):
     # Tính tốc độ 3 bánh xe Omni theo công thức LeKiwi
     w1, w2, w3 = compute_lekiwi_wheel_speeds(vx, vy, omega_rot)
 
-    # Ghi vào 6 kênh điều khiển (ctrl) của MuJoCo
-    data.ctrl[0] = neck
-    data.ctrl[1] = l_arm
-    data.ctrl[2] = r_arm
+    # Mượt hóa góc servo (Rate limiting) tránh sốc xung cơ khí làm robot giật nảy
+    smoothed = state.setdefault("smoothed_ctrl", [0.0, 0.0, 0.0])
+    target_ctrl = [neck, l_arm, r_arm]
+    for i in range(3):
+        smoothed[i] += (target_ctrl[i] - smoothed[i]) * 0.15
+        data.ctrl[i] = smoothed[i]
+
+    # Ghi tốc độ 3 bánh xe Omni vào ctrl
     data.ctrl[3] = w1
     data.ctrl[4] = w2
     data.ctrl[5] = w3
+
+    # Giữ thăng bằng và triệt tiêu dao động lắc lư (Roll & Pitch Damping)
+    data.qvel[3] *= 0.85
+    data.qvel[4] *= 0.85
 
     # Cập nhật vận tốc phẳng Holonomic và cơ chế 3 cảm biến IR chống rơi mép bàn
     if vx != 0.0 or vy != 0.0 or omega_rot != 0.0:
