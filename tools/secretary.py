@@ -94,8 +94,8 @@ _timer_counter = 0
 
 
 def _speak_alert_sync(message: str):
-    """Play alert chime and speak reminder when timer ends, combined with 3D arm waving."""
-    send_motion_to_3d_sim("wave_greeting", duration=4.0, bpm=130)
+    """Play alert chime and speak reminder when timer ends, combined with 3D Omni slide & arm waving."""
+    send_motion_to_3d_sim("moonwalk_dance", duration=4.0, bpm=130)
     print(f"\n⏰ [BÁO THỨC TÈO]: {message}")
     try:
         import pygame

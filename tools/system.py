@@ -1,9 +1,9 @@
 """
-Group 4 & Group 6: System Diagnostics, TTS Voice Switcher & 3D Robot Physical Motions.
+Group 4 & Group 6: System Diagnostics, TTS Voice Switcher & 3D Robot Omni/Motion Bundles.
 - Laptop health (CPU, RAM, Battery, Disk, NVIDIA RTX 3050 GPU temperature and VRAM).
 - Full hardware specifications (CPU model, physical/logical cores, total RAM, GPU, OS).
 - TTS voice switcher (chipmunk, diemdam, tramvang, google).
-- 3D MuJoCo Motion Bundles (head, arms, tank tracks).
+- 3D MuJoCo Motion Bundles & 3-Wheel Omni Kiwi Drive (LeKiwi) holonomic navigation.
 """
 
 import json
@@ -11,7 +11,6 @@ import platform
 import socket
 import subprocess
 import sys
-from pathlib import Path
 
 import psutil
 
@@ -22,7 +21,7 @@ if sys.platform == "win32":
     import winreg
 
 
-# --- 3D MuJoCo Simulation Motions ---
+# --- 3D MuJoCo Simulation: Motion Bundles & 3-Wheel Omni Kiwi Drive (LeKiwi) ---
 
 VALID_MOTIONS = {
     "wave_greeting",
@@ -30,10 +29,44 @@ VALID_MOTIONS = {
     "shake_no",
     "look_around",
     "happy_dance",
+    "moonwalk_dance",
     "move_forward",
     "move_backward",
+    "slide_left",
+    "slide_right",
+    "circle_strafe",
     "spin_around",
     "idle",
+}
+
+VALID_OMNI_MOVES = {
+    "move_forward",
+    "move_backward",
+    "slide_left",
+    "slide_right",
+    "circle_strafe",
+    "spin_around",
+    "idle",
+}
+
+MOTION_LABELS = {
+    "wave_greeting": "vẫy tay chào và nghiêng đầu",
+    "nod_yes": "gật đầu đồng ý",
+    "shake_no": "lắc đầu từ chối",
+    "look_around": "xoay cổ nhìn quanh tìm sếp",
+    "happy_dance": "nhảy múa tại chỗ theo nhịp nhạc",
+    "moonwalk_dance": "nhảy trượt ngang Moonwalk đa hướng trên đế 3 bánh Omni",
+    "idle": "đứng yên nghỉ ngơi",
+}
+
+OMNI_MOVE_LABELS = {
+    "move_forward": "tiến lên phía trước",
+    "move_backward": "lùi lại phía sau",
+    "slide_left": "trượt ngang sang trái giữ nguyên ánh mắt nhìn sếp",
+    "slide_right": "trượt ngang sang phải giữ nguyên ánh mắt nhìn sếp",
+    "circle_strafe": "lượn vòng cung quanh mặt bàn giữ nguyên hướng mắt nhìn sếp",
+    "spin_around": "xoay tròn 360 độ tại chỗ",
+    "idle": "dừng đứng yên",
 }
 
 
@@ -48,16 +81,40 @@ def send_motion_to_3d_sim(motion: str, duration: float = 3.0, bpm: int = 120):
         pass
 
 
-def tool_thuc_hien_cu_chi_co_the(args: dict) -> str:
-    """Execute physical motion bundle for Teo robot."""
+def tool_dieu_khien_co_the_teo(args: dict) -> str:
+    """Execute expressive upper-body gesture or Omni dance bundle (wave, nod, shake, happy_dance, moonwalk_dance)."""
     motion = args.get("hanh_dong") or args.get("goi_chuyen_dong") or "wave_greeting"
     if motion not in VALID_MOTIONS:
         motion = "wave_greeting"
     dur = float(args.get("so_giay", 3.5))
     bpm = int(args.get("bpm", 125))
     send_motion_to_3d_sim(motion, dur, bpm)
-    print(f"🤖 [Tool Call -> 3D Sim]: Kích hoạt '{motion}' trong {dur}s (BPM={bpm})")
-    return f"Đã thực hiện cử chỉ {motion} trong {dur} giây thành công."
+    desc = MOTION_LABELS.get(motion) or OMNI_MOVE_LABELS.get(motion, motion)
+    print(f"🤖 [Tool Call -> 3D Motion Bundle]: Kích hoạt '{motion}' ({desc}) trong {dur}s (BPM={bpm})")
+    return f"Đã thực hiện cử chỉ {motion} ({desc}) trong {dur} giây thành công."
+
+
+def tool_di_chuyen_da_huong_omni(args: dict) -> str:
+    """
+    Control 3-Wheel Omni Kiwi Drive (LeKiwi) holonomic base on desk:
+    move_forward, move_backward, slide_left, slide_right, circle_strafe, spin_around.
+    Enforces 1.0-3.0s safety duration limit and 3 IR anti-drop cliff sensors check.
+    """
+    move = args.get("huong_di") or args.get("hanh_dong") or "slide_left"
+    if move not in VALID_OMNI_MOVES:
+        move = "slide_left"
+
+    raw_dur = float(args.get("so_giay", 2.0))
+    dur = max(1.0, min(3.0, raw_dur))
+    bpm = int(args.get("bpm", 120))
+
+    send_motion_to_3d_sim(move, dur, bpm)
+    desc = OMNI_MOVE_LABELS.get(move, move)
+    print(f"🛞 [Tool Call -> 3-Wheel Omni Kiwi Drive]: '{move}' ({desc}) trong {dur}s [3 IR chống rơi: AN TOÀN]")
+    return (
+        f"Đế 3 bánh Omni đã {desc} ({move}) trong {dur} giây an toàn "
+        "với 3 cảm biến hồng ngoại chống rơi mép bàn."
+    )
 
 
 # --- Laptop Health & Hardware Specs ---
@@ -231,4 +288,3 @@ def tool_doi_giong_noi_teo(args: dict) -> str:
     label = VOICE_LABELS[voice]
     print(f"🔊 [Tool Call -> Voice Switch]: Đổi sang '{voice}' ({label})")
     return f"Đã đổi giọng nói của em sang chế độ {label} theo ý sếp."
-

@@ -37,16 +37,17 @@ class TestTeoToolsDot1AndDot2(unittest.TestCase):
     # 0. KIỂM TRA PROMPT TIẾNG ANH & SCHEMA CHUẨN (TỐI ƯU TOKEN / CACHE)
     # ==========================================================================
     def test_00_prompts_are_english_and_schema_count(self):
-        # Đợt 1 (6 tools) + Đợt 2 (5 tools) = 11 tools (nằm trong ngưỡng vàng 10-15 tools)
-        self.assertEqual(len(TOOLS_SCHEMA), 11)
+        # Đợt 1 + Nhóm 6 Omni (7 tools) + Đợt 2 (5 tools) = 12 tools (chuẩn 12-14 tools trong kế hoạch)
+        self.assertEqual(len(TOOLS_SCHEMA), 12)
         expected_names = {
-            # Đợt 1
+            # Đợt 1 & Nhóm 6 (Omni LeKiwi)
             "quan_ly_cong_viec",
             "kiem_tra_suc_khoe_laptop",
             "doi_giong_noi_teo",
             "doc_va_tom_tat_tai_lieu",
             "phat_nhac_va_dieu_khien_media",
-            "thuc_hien_cu_chi_co_the",
+            "dieu_khien_co_the_teo",
+            "di_chuyen_da_huong_omni",
             # Đợt 2
             "xu_ly_bo_nho_tam_clipboard",
             "nhin_man_hinh_laptop",
@@ -109,8 +110,8 @@ class TestTeoToolsDot1AndDot2(unittest.TestCase):
         )
         self.assertIn("Đã xóa công việc", res_del)
 
-        # 6. Xóa hết (kiểm tra luôn alias cũ quan_ly_viec_can_lam)
-        res_clear = execute_tool_call("quan_ly_viec_can_lam", json.dumps({"thao_tac": "xoa_het"}))
+        # 6. Xóa hết
+        res_clear = execute_tool_call("quan_ly_cong_viec", json.dumps({"thao_tac": "xoa_het"}))
         self.assertIn("Đã xóa sạch", res_clear)
 
     def test_02_kiem_tra_suc_khoe_laptop(self):
@@ -218,24 +219,63 @@ class TestTeoToolsDot1AndDot2(unittest.TestCase):
             self.assertIn("tăng âm lượng", res_vol)
             self.assertEqual(len(sent_keys), 4)
 
-    def test_06_thuc_hien_cu_chi_co_the(self):
+    def test_06_dieu_khien_co_the_teo_and_omni_navigation(self):
         sent_motions = []
         with patch.object(
             tools.system,
             "send_motion_to_3d_sim",
             side_effect=lambda m, d, b: sent_motions.append((m, d, b)),
         ):
+            # 1. Cử chỉ thân trên & Vũ đạo Moonwalk trên đế 3 bánh Omni
             res = execute_tool_call(
-                "thuc_hien_cu_chi_co_the",
-                json.dumps({"hanh_dong": "happy_dance", "so_giay": 5.0, "bpm": 140}),
+                "dieu_khien_co_the_teo",
+                json.dumps({"hanh_dong": "moonwalk_dance", "so_giay": 5.0, "bpm": 135}),
             )
-            self.assertIn("happy_dance", res)
-            self.assertEqual(sent_motions[-1], ("happy_dance", 5.0, 140))
+            self.assertIn("moonwalk_dance", res)
+            self.assertEqual(sent_motions[-1], ("moonwalk_dance", 5.0, 135))
 
-            execute_tool_call("thuc_hien_cu_chi_co_the", json.dumps({"hanh_dong": "nod_yes"}))
+            execute_tool_call("dieu_khien_co_the_teo", json.dumps({"hanh_dong": "nod_yes"}))
             self.assertEqual(sent_motions[-1][0], "nod_yes")
-            execute_tool_call("thuc_hien_cu_chi_co_the", json.dumps({"hanh_dong": "look_around"}))
+
+            execute_tool_call("dieu_khien_co_the_teo", json.dumps({"hanh_dong": "look_around"}))
             self.assertEqual(sent_motions[-1][0], "look_around")
+
+            # 2. Điều hướng toàn hướng Đế 3 bánh Omni Kiwi Drive (LeKiwi)
+            res_slide_l = execute_tool_call(
+                "di_chuyen_da_huong_omni",
+                json.dumps({"huong_di": "slide_left", "so_giay": 2.0}),
+            )
+            self.assertIn("trượt ngang sang trái", res_slide_l)
+            self.assertEqual(sent_motions[-1], ("slide_left", 2.0, 120))
+
+            res_strafe = execute_tool_call(
+                "di_chuyen_da_huong_omni",
+                json.dumps({"huong_di": "circle_strafe", "so_giay": 10.0}),  # Phải tự giới hạn về 3.0s an toàn
+            )
+            self.assertIn("lượn vòng cung", res_strafe)
+            self.assertEqual(sent_motions[-1], ("circle_strafe", 3.0, 120))
+
+    def test_12_mujoco_lekiwi_omni_kinematics(self):
+        import mujoco
+        import teo_sim_runner
+
+        # Kiểm tra công thức Kiwi Drive 3 bánh xe lệch 120 độ:
+        # Khi trượt ngang sang phải (vx > 0, vy = 0, omega = 0): w1 > 0, w2 = w3 = -0.5 * w1
+        w1, w2, w3 = teo_sim_runner.compute_lekiwi_wheel_speeds(0.2, 0.0, 0.0)
+        self.assertGreater(w1, 0)
+        self.assertAlmostEqual(w2, -0.5 * w1, places=5)
+        self.assertAlmostEqual(w3, -0.5 * w1, places=5)
+
+        # Kiểm tra nạp mô hình 3D MuJoCo 6 kênh PCA9685 (3 Servo thân trên + 3 Servo bánh Omni)
+        xml_path = Path(__file__).parent / "teo_walle.xml"
+        model = mujoco.MjModel.from_xml_path(str(xml_path))
+        data = mujoco.MjData(model)
+        self.assertEqual(model.nu, 6)
+
+        state = {"motion": "slide_left", "bpm": 120, "end_time": time.time() + 2.0}
+        teo_sim_runner.apply_motion_bundle(data, 0.5, state)
+        self.assertLess(data.ctrl[3], 0)  # Bánh trước quay chiều trượt trái
+        mujoco.mj_step(model, data)
 
     # ==========================================================================
     # ĐỢT 2: 5 TOOLS ĐỘT PHÁ CHO THƯ KÝ LAPTOP

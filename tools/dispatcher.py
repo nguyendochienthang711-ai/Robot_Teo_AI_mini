@@ -16,29 +16,32 @@ from tools.secretary import (
     tool_quan_ly_cong_viec,
 )
 from tools.system import (
-    get_hardware_specs,
+    tool_di_chuyen_da_huong_omni,
+    tool_dieu_khien_co_the_teo,
     tool_doi_giong_noi_teo,
     tool_kiem_tra_suc_khoe_laptop,
-    tool_thuc_hien_cu_chi_co_the,
 )
 
 TOOL_DISPATCH = {
-    # Đợt 1
+    # Nhóm 1: Thư ký cá nhân & Thời gian
     "quan_ly_cong_viec": tool_quan_ly_cong_viec,
-    "quan_ly_viec_can_lam": tool_quan_ly_cong_viec,  # Backward compatibility alias
-    "kiem_tra_suc_khoe_laptop": tool_kiem_tra_suc_khoe_laptop,
-    "doc_thong_so_may_tinh": lambda _: get_hardware_specs(),  # Backward compatibility alias
-    "doi_giong_noi_teo": tool_doi_giong_noi_teo,
-    "doc_va_tom_tat_tai_lieu": tool_doc_va_tom_tat_tai_lieu,
-    "phat_nhac_va_dieu_khien_media": tool_phat_nhac_va_dieu_khien_media,
-    "thuc_hien_cu_chi_co_the": tool_thuc_hien_cu_chi_co_the,
-    "dieu_khien_co_the_teo": tool_thuc_hien_cu_chi_co_the,  # Backward compatibility alias
-    # Đợt 2
-    "xu_ly_bo_nho_tam_clipboard": tool_xu_ly_bo_nho_tam_clipboard,
-    "nhin_man_hinh_laptop": None,  # Will be resolved dynamically to allow patching/lazy loading
     "dong_ho_tap_trung_pomodoro": tool_dong_ho_tap_trung_pomodoro,
-    "tra_cuu_thong_tin_truc_tuyen": tool_tra_cuu_thong_tin_truc_tuyen,
+    # Nhóm 2: Đọc tài liệu, Clipboard & Bộ nhớ dài hạn
+    "doc_va_tom_tat_tai_lieu": tool_doc_va_tom_tat_tai_lieu,
+    "xu_ly_bo_nho_tam_clipboard": tool_xu_ly_bo_nho_tam_clipboard,
     "ghi_nho_thong_tin_dai_han": tool_ghi_nho_thong_tin_dai_han,
+    # Nhóm 3: Thị giác màn hình máy tính
+    "nhin_man_hinh_laptop": None,  # Nạp động theo nhu cầu để tối ưu tài nguyên
+    # Nhóm 4: Điều khiển laptop & Chẩn đoán phần cứng
+    "kiem_tra_suc_khoe_laptop": tool_kiem_tra_suc_khoe_laptop,
+    # Nhóm 5: Giải trí, Âm nhạc & Đổi giọng
+    "phat_nhac_va_dieu_khien_media": tool_phat_nhac_va_dieu_khien_media,
+    "doi_giong_noi_teo": tool_doi_giong_noi_teo,
+    # Nhóm 6: Cử chỉ thân trên & Đế 3 bánh Omni Kiwi Drive (LeKiwi)
+    "dieu_khien_co_the_teo": tool_dieu_khien_co_the_teo,
+    "di_chuyen_da_huong_omni": tool_di_chuyen_da_huong_omni,
+    # Nhóm 7: Tra cứu thời tiết & Tìm kiếm trực tuyến
+    "tra_cuu_thong_tin_truc_tuyen": tool_tra_cuu_thong_tin_truc_tuyen,
 }
 
 
@@ -66,4 +69,3 @@ def execute_tool_call(func_name: str, args_json: str) -> str:
     except Exception as e:
         print(f"⚠️ [Tool Error - {func_name}]: {e}")
         return f"Đã xảy ra lỗi khi thực thi công cụ {func_name}: {e}"
-

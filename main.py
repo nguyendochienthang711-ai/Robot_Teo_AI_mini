@@ -8,9 +8,9 @@ from config import MODEL_NAME
 
 
 async def main():
-    print("=== TRỢ LÝ ROBOT TÈO (GIỌNG NÓI STREAMING + CƠ THỂ 3D + 11 TOOL ĐỢT 1 & 2) ===")
+    print("=== TRỢ LÝ ROBOT TÈO (GIỌNG NÓI STREAMING + ĐẾ 3 BÁNH OMNI LEKIWI + 12 TOOL ĐỢT 1 & 2) ===")
     print(f"-> Não bộ: DeepSeek ({MODEL_NAME}) | Prompt Tiếng Anh tối ưu Token/Cache -> Output Tiếng Việt")
-    print("-> Đợt 1: Todo, Sức khỏe/Cấu hình Laptop, Đổi giọng nói, Đọc/Tóm tắt file, Nhạc YouTube/Media, Cử chỉ 3D")
+    print("-> Đợt 1: Todo, Sức khỏe/Cấu hình Laptop, Đổi giọng nói, Đọc/Tóm tắt file, Nhạc YouTube/Media, Cử chỉ 3D, Di chuyển Omni")
     print("-> Đợt 2: Đọc/Ghi Clipboard, Nhìn màn hình Laptop, Hẹn giờ Pomodoro, Thời tiết/Web, Bộ nhớ dài hạn\n")
 
     async with aiohttp.ClientSession() as http_session:

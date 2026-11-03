@@ -5,7 +5,7 @@ Groups:
 - secretary: Todo list & Pomodoro timers.
 - documents: Document reader/summarizer, Clipboard & Long-Term Memory.
 - vision: Laptop screen screenshot analysis.
-- system: Laptop diagnostics & 3D physical motions.
+- system: Laptop diagnostics, 3D Motion Bundles & 3-Wheel Omni Kiwi Drive (LeKiwi).
 - media: YouTube background audio player & Media controller.
 - search: Online weather & DuckDuckGo web search.
 """
@@ -48,16 +48,20 @@ from tools.secretary import (
     tool_quan_ly_cong_viec,
 )
 
-# System & 3D Simulation
+# System & 3D Simulation (Motion Bundles + 3-Wheel Omni Kiwi Drive)
 from tools.system import (
+    MOTION_LABELS,
+    OMNI_MOVE_LABELS,
     VALID_MOTIONS,
+    VALID_OMNI_MOVES,
     VOICE_LABELS,
     get_gpu_live_status,
     get_hardware_specs,
     send_motion_to_3d_sim,
+    tool_di_chuyen_da_huong_omni,
+    tool_dieu_khien_co_the_teo,
     tool_doi_giong_noi_teo,
     tool_kiem_tra_suc_khoe_laptop,
-    tool_thuc_hien_cu_chi_co_the,
 )
 
 # Vision
@@ -88,7 +92,8 @@ __all__ = [
     "tool_doi_giong_noi_teo",
     "tool_doc_va_tom_tat_tai_lieu",
     "tool_phat_nhac_va_dieu_khien_media",
-    "tool_thuc_hien_cu_chi_co_the",
+    "tool_dieu_khien_co_the_teo",
+    "tool_di_chuyen_da_huong_omni",
     "tool_xu_ly_bo_nho_tam_clipboard",
     "tool_nhin_man_hinh_laptop",
     "tool_dong_ho_tap_trung_pomodoro",

@@ -2,10 +2,29 @@ import json
 import socket
 from fastmcp import FastMCP
 
-# Khởi tạo máy chủ MCP cho Robot Tèo (strict_input_validation=False là mặc định)
 mcp = FastMCP("TeoRobotMotionController")
 
 UDP_TARGET = ("127.0.0.1", 5555)
+
+VALID_BODY_MOTIONS = {
+    "wave_greeting",
+    "nod_yes",
+    "shake_no",
+    "look_around",
+    "happy_dance",
+    "moonwalk_dance",
+    "idle",
+}
+
+VALID_OMNI_MOVES = {
+    "move_forward",
+    "move_backward",
+    "slide_left",
+    "slide_right",
+    "circle_strafe",
+    "spin_around",
+    "idle",
+}
 
 
 def _send_to_sim(motion: str, duration: float = 3.0, bpm: int = 120) -> str:
@@ -13,30 +32,31 @@ def _send_to_sim(motion: str, duration: float = 3.0, bpm: int = 120) -> str:
     payload = json.dumps({"motion": motion, "duration": duration, "bpm": bpm}).encode("utf-8")
     sock.sendto(payload, UDP_TARGET)
     sock.close()
-    return f"Đã kích hoạt gói chuyển động '{motion}' trong {duration} giây (BPM={bpm})."
+    return f"Đã kích hoạt chuyển động '{motion}' trong {duration} giây (BPM={bpm})."
 
 
 @mcp.tool
-def thuc_hien_cu_chi_teo(
-    goi_chuyen_dong: str,
-    thoi_gian_giay: float = 3.5,
-    nhip_nhac_bpm: int = 120,
+def dieu_khien_co_the_teo(
+    hanh_dong: str,
+    so_giay: float = 3.5,
+    bpm: int = 125,
 ) -> str:
-    """Execute 3D motion bundle for Teo robot: wave_greeting, nod_yes, shake_no, look_around, happy_dance, move_forward, move_backward, spin_around, idle."""
-    valid_motions = {
-        "wave_greeting",
-        "nod_yes",
-        "shake_no",
-        "look_around",
-        "happy_dance",
-        "move_forward",
-        "move_backward",
-        "spin_around",
-        "idle",
-    }
-    if goi_chuyen_dong not in valid_motions:
-        goi_chuyen_dong = "wave_greeting"
-    return _send_to_sim(goi_chuyen_dong, float(thoi_gian_giay), int(nhip_nhac_bpm))
+    """Execute upper-body gesture or dance bundle: wave_greeting, nod_yes, shake_no, look_around, happy_dance, moonwalk_dance, idle."""
+    if hanh_dong not in VALID_BODY_MOTIONS and hanh_dong not in VALID_OMNI_MOVES:
+        hanh_dong = "wave_greeting"
+    return _send_to_sim(hanh_dong, float(so_giay), int(bpm))
+
+
+@mcp.tool
+def di_chuyen_da_huong_omni(
+    huong_di: str,
+    so_giay: float = 2.0,
+) -> str:
+    """Navigate 3-wheel Omni Kiwi Drive base on desk (1-3s with 3 IR cliff sensors): move_forward, move_backward, slide_left, slide_right, circle_strafe, spin_around, idle."""
+    if huong_di not in VALID_OMNI_MOVES:
+        huong_di = "slide_left"
+    clamped_sec = max(1.0, min(3.0, float(so_giay)))
+    return _send_to_sim(huong_di, clamped_sec, 120)
 
 
 if __name__ == "__main__":

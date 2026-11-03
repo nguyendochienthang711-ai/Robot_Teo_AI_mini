@@ -127,8 +127,8 @@ TOOLS_SCHEMA = [
     {
         "type": "function",
         "function": {
-            "name": "thuc_hien_cu_chi_co_the",
-            "description": "Trigger 3D robot physical motion bundles (head, arms, tank tracks) in MuJoCo / ESP32.",
+            "name": "dieu_khien_co_the_teo",
+            "description": "Trigger 3D robot upper-body gestures and Omni dance bundles (head, arms, 3-wheel Omni rhythm): wave, nod, shake, look around, happy dance, or moonwalk dance.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -140,12 +140,10 @@ TOOLS_SCHEMA = [
                             "shake_no",
                             "look_around",
                             "happy_dance",
-                            "move_forward",
-                            "move_backward",
-                            "spin_around",
+                            "moonwalk_dance",
                             "idle",
                         ],
-                        "description": "Motion bundle: wave_greeting, nod_yes, shake_no, look_around, happy_dance, move_forward, move_backward, spin_around, idle.",
+                        "description": "Gesture/dance bundle: wave_greeting, nod_yes, shake_no, look_around, happy_dance, moonwalk_dance (lateral omni slide dance), idle.",
                     },
                     "so_giay": {
                         "type": "number",
@@ -157,6 +155,36 @@ TOOLS_SCHEMA = [
                     },
                 },
                 "required": ["hanh_dong"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "di_chuyen_da_huong_omni",
+            "description": "Navigate the 3-Wheel Omni Kiwi Drive (LeKiwi) holonomic base on the desk: forward, backward, strafe left/right while keeping eye contact, circle strafe, or spin.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "huong_di": {
+                        "type": "string",
+                        "enum": [
+                            "move_forward",
+                            "move_backward",
+                            "slide_left",
+                            "slide_right",
+                            "circle_strafe",
+                            "spin_around",
+                            "idle",
+                        ],
+                        "description": "Omni direction: move_forward, move_backward, slide_left (strafe left keeping eye contact), slide_right (strafe right keeping eye contact), circle_strafe (arc around desk facing user), spin_around, idle.",
+                    },
+                    "so_giay": {
+                        "type": "number",
+                        "description": "Move duration in seconds (clamped between 1.0 and 3.0s for desk safety, default 2.0).",
+                    },
+                },
+                "required": ["huong_di"],
             },
         },
     },
