@@ -1,80 +1,99 @@
 """
 Group 1: Personal Secretary, Time & Task Management.
-- Todo tasks management: add, view, complete, delete, clear.
-- Pomodoro and countdown timers with async alert callback and 3D arm waving.
+- Todo tasks management with safe disambiguation and atomic persistence (TL-05, TL-10).
+- Persistent timers & Pomodoro alarms with restore on reboot and arm waving (TL-09).
 """
 
 import io
+import logging
 import threading
 import time
-from pathlib import Path
+from typing import Any
 
 import config
-from tools.common import _load_json_file, _save_json_file, _strip_accents
+from tools.common import _strip_accents, load_json, save_json, update_json
 from tools.system import send_motion_to_3d_sim
 
+log = logging.getLogger("teo.secretary")
+
+# --- Todo Tasks Management (TL-05, TL-10) ---
 
 def tool_quan_ly_cong_viec(args: dict) -> str:
-    """Manage the user's Todo task list."""
+    """Manage the user's Todo task list with exact matching and disambiguation (TL-10)."""
     action = args.get("thao_tac", "xem")
     content = (args.get("noi_dung") or "").strip()
     index = args.get("vi_tri")
-    todos: list[dict] = _load_json_file(config.TODO_FILE, [])
 
     if action == "them":
         if not content:
             return "Sếp chưa nói nội dung công việc cần thêm."
-        todos.append(
-            {
+
+        def mutate_add(todos: list[dict]):
+            todos.append({
                 "task": content,
                 "done": False,
                 "time": time.strftime("%H:%M %d/%m"),
-            }
-        )
-        _save_json_file(config.TODO_FILE, todos)
-        print(f"📝 [Tool Call -> Todo]: Đã thêm '{content}'")
+            })
+
+        update_json(config.TODO_FILE, [], mutate_add)
         return f"Đã lưu công việc '{content}' vào danh sách của sếp."
 
     elif action == "hoan_thanh":
-        target_idx = None
-        if isinstance(index, int) and 1 <= index <= len(todos):
-            target_idx = index - 1
-        elif content:
-            norm_q = _strip_accents(content)
-            for i, t in enumerate(todos):
-                if norm_q in _strip_accents(t.get("task", "")):
-                    target_idx = i
-                    break
-        if target_idx is None:
-            return "Không tìm thấy công việc tương ứng để đánh dấu hoàn thành."
-        todos[target_idx]["done"] = True
-        _save_json_file(config.TODO_FILE, todos)
-        task_name = todos[target_idx]["task"]
-        print(f"✅ [Tool Call -> Todo]: Hoàn thành '{task_name}'")
-        return f"Đã đánh dấu hoàn thành công việc '{task_name}'."
+        def mutate_done(todos: list[dict]):
+            if isinstance(index, int) and 1 <= index <= len(todos):
+                todos[index - 1]["done"] = True
+                return ("OK", todos[index - 1]["task"])
+            if content:
+                q = _strip_accents(content)
+                exact = [i for i, t in enumerate(todos) if _strip_accents(t.get("task", "")) == q]
+                cands = exact or [i for i, t in enumerate(todos) if q in _strip_accents(t.get("task", ""))]
+                if not cands:
+                    return ("NOT_FOUND", None)
+                if len(cands) > 1:
+                    names = "; ".join(f"Số {i+1}: {todos[i]['task']}" for i in cands[:5])
+                    return ("MULTI", names, len(cands))
+                todos[cands[0]]["done"] = True
+                return ("OK", todos[cands[0]]["task"])
+            return ("MISSING", None)
+
+        res = update_json(config.TODO_FILE, [], mutate_done)
+        if res[0] == "OK":
+            return f"Đã đánh dấu hoàn thành công việc '{res[1]}'."
+        elif res[0] == "MULTI":
+            return f"Có {res[2]} việc khớp: {res[1]}. Sếp hãy nói rõ số thứ tự việc cần hoàn thành nhé."
+        return "Không tìm thấy công việc tương ứng để đánh dấu hoàn thành."
 
     elif action == "xoa":
-        target_idx = None
-        if isinstance(index, int) and 1 <= index <= len(todos):
-            target_idx = index - 1
-        elif content:
-            norm_q = _strip_accents(content)
-            for i, t in enumerate(todos):
-                if norm_q in _strip_accents(t.get("task", "")):
-                    target_idx = i
-                    break
-        if target_idx is None:
-            return "Không tìm thấy công việc cần xóa trong danh sách."
-        removed = todos.pop(target_idx)
-        _save_json_file(config.TODO_FILE, todos)
-        print(f"🗑️ [Tool Call -> Todo]: Đã xóa '{removed.get('task')}'")
-        return f"Đã xóa công việc '{removed.get('task')}' khỏi danh sách."
+        def mutate_del(todos: list[dict]):
+            if isinstance(index, int) and 1 <= index <= len(todos):
+                removed = todos.pop(index - 1)
+                return ("OK", removed["task"])
+            if content:
+                q = _strip_accents(content)
+                exact = [i for i, t in enumerate(todos) if _strip_accents(t.get("task", "")) == q]
+                cands = exact or [i for i, t in enumerate(todos) if q in _strip_accents(t.get("task", ""))]
+                if not cands:
+                    return ("NOT_FOUND", None)
+                if len(cands) > 1:
+                    names = "; ".join(f"Số {i+1}: {todos[i]['task']}" for i in cands[:5])
+                    return ("MULTI", names, len(cands))
+                removed = todos.pop(cands[0])
+                return ("OK", removed["task"])
+            return ("MISSING", None)
+
+        res = update_json(config.TODO_FILE, [], mutate_del)
+        if res[0] == "OK":
+            return f"Đã xóa công việc '{res[1]}' khỏi danh sách."
+        elif res[0] == "MULTI":
+            return f"Có {res[2]} việc khớp: {res[1]}. Sếp hãy nói rõ số thứ tự việc cần xóa nhé."
+        return "Không tìm thấy công việc cần xóa trong danh sách."
 
     elif action == "xoa_het":
-        _save_json_file(config.TODO_FILE, [])
+        save_json(config.TODO_FILE, [])
         return "Đã xóa sạch danh sách công việc."
 
     # Default: view list
+    todos = load_json(config.TODO_FILE, [])
     if not todos:
         return "Hiện tại danh sách công việc của sếp đang trống."
     items_str = []
@@ -82,43 +101,107 @@ def tool_quan_ly_cong_viec(args: dict) -> str:
         status = "đã xong" if t.get("done") else "chưa làm"
         items_str.append(f"Việc số {i + 1}: {t.get('task')} ({status})")
     summary = "; ".join(items_str)
-    print(f"📋 [Tool Call -> Todo]: {summary}")
     return f"Danh sách hiện có {len(todos)} việc: {summary}."
 
 
-# --- Pomodoro & Background Timers ---
+# --- Persistent Pomodoro & Countdown Timers (TL-09) ---
 
 _active_timers: list[dict] = []
-_timer_lock = threading.Lock()
+_timer_lock = threading.RLock()
 _timer_counter = 0
 
 
+def _save_persistent_timers():
+    """Save active timer records to teo_timers.json (TL-09)."""
+    with _timer_lock:
+        recs = [
+            {"id": t["id"], "label": t["label"], "due_ts": t["end_time"]}
+            for t in _active_timers
+        ]
+    save_json(config.TIMERS_FILE, recs)
+
+
 def _speak_alert_sync(message: str):
-    """Play alert chime and speak reminder when timer ends, combined with 3D Omni slide & arm waving."""
-    send_motion_to_3d_sim("moonwalk_dance", duration=4.0, bpm=130)
-    print(f"\n⏰ [BÁO THỨC TÈO]: {message}")
+    """Play alert chime and speak reminder when timer ends. Safe body gesture only (TL-09)."""
+    # Safe upper body gesture (wave greeting) instead of dangerous base motion
+    send_motion_to_3d_sim("wave_greeting", duration=3.0, bpm=120)
+    log.info("Timer alert fired: %s", message)
+
     try:
         import pygame
         from audio_io import fetch_piper_tts_sync
 
         audio_bytes, _ = fetch_piper_tts_sync(message, getattr(config, "TTS_MODE", "chipmunk"))
         if audio_bytes and pygame.mixer.get_init():
-            if not pygame.mixer.music.get_busy():
-                pygame.mixer.music.load(io.BytesIO(audio_bytes))
-                pygame.mixer.music.play()
-    except Exception:
-        pass
+            # Wait up to 3 seconds if audio bus is currently busy
+            for _ in range(30):
+                if not pygame.mixer.music.get_busy():
+                    break
+                time.sleep(0.1)
+            pygame.mixer.music.load(io.BytesIO(audio_bytes))
+            pygame.mixer.music.play()
+    except Exception as e:
+        log.warning("Audio alert playback fallback: %s", e)
+        try:
+            import winsound
+            winsound.Beep(1000, 600)
+        except Exception:
+            pass
+
+
+def _fire_timer(tid: int, label: str):
+    """Handle timer expiration and remove from persistent state."""
+    with _timer_lock:
+        _active_timers[:] = [t for t in _active_timers if t["id"] != tid]
+    _save_persistent_timers()
+    _speak_alert_sync(label)
+
+
+def _arm_timer(tid: int, label: str, due_ts: float):
+    """Arm a countdown timer with background thread execution."""
+    delay = max(0.0, due_ts - time.time())
+    t_obj = threading.Timer(delay, _fire_timer, args=(tid, label))
+    t_obj.daemon = True
+    t_obj.start()
+    _active_timers.append({
+        "id": tid,
+        "label": label,
+        "end_time": due_ts,
+        "timer": t_obj,
+    })
+
+
+def restore_timers():
+    """Restore pending timers from teo_timers.json upon system startup (TL-09)."""
+    global _timer_counter
+    records = load_json(config.TIMERS_FILE, [])
+    now = time.time()
+    with _timer_lock:
+        for rec in records:
+            tid = rec.get("id", 0)
+            label = rec.get("label", "Hẹn giờ")
+            due_ts = rec.get("due_ts", 0)
+            if due_ts > now - 600:  # Fire even if missed within 10 minutes
+                _timer_counter = max(_timer_counter, tid)
+                _arm_timer(tid, label, due_ts)
+    _save_persistent_timers()
 
 
 def tool_dong_ho_tap_trung_pomodoro(args: dict) -> str:
-    """Set countdown timer / Pomodoro, check remaining time, or cancel timers."""
+    """Set countdown timer / Pomodoro, check status, or cancel timers with persistent recovery (TL-09)."""
     global _timer_counter
     action = args.get("thao_tac", "dat_hen_gio")
-    minutes = float(args.get("so_phut", 25))
+    raw_minutes = args.get("so_phut", 25)
+    hen_gio_id = args.get("hen_gio_id")
     reminder = (
         args.get("loi_nhac")
         or "Hết giờ tập trung rồi sếp ơi, sếp nghỉ ngơi uống miếng nước và vươn vai nhé."
     ).strip()
+
+    try:
+        minutes = float(raw_minutes)
+    except (TypeError, ValueError):
+        minutes = 25.0
 
     now = time.time()
     with _timer_lock:
@@ -128,12 +211,21 @@ def tool_dong_ho_tap_trung_pomodoro(args: dict) -> str:
         if action == "huy":
             if not _active_timers:
                 return "Hiện không có bộ hẹn giờ nào đang chạy."
-            count = len(_active_timers)
-            for t in _active_timers:
-                t["timer"].cancel()
-            _active_timers.clear()
-            print(f"⏰ [Tool Call -> Timer]: Đã hủy {count} hẹn giờ")
-            return f"Đã hủy toàn bộ {count} bộ hẹn giờ cho sếp."
+            if hen_gio_id is not None:
+                matches = [t for t in _active_timers if t["id"] == hen_gio_id]
+                if not matches:
+                    return f"Không tìm thấy bộ hẹn giờ số {hen_gio_id}."
+                matches[0]["timer"].cancel()
+                _active_timers.remove(matches[0])
+                _save_persistent_timers()
+                return f"Đã hủy bộ hẹn giờ số {hen_gio_id} cho sếp."
+            else:
+                count = len(_active_timers)
+                for t in _active_timers:
+                    t["timer"].cancel()
+                _active_timers.clear()
+                _save_persistent_timers()
+                return f"Đã hủy toàn bộ {count} bộ hẹn giờ cho sếp."
 
         elif action == "xem_trang_thai":
             if not _active_timers:
@@ -142,39 +234,27 @@ def tool_dong_ho_tap_trung_pomodoro(args: dict) -> str:
             for t in _active_timers:
                 rem_sec = max(0, int(t["end_time"] - now))
                 m, s = divmod(rem_sec, 60)
-                parts.append(f"'{t['label']}' còn {m} phút {s} giây")
+                parts.append(f"Mã {t['id']}: '{t['label']}' còn {m} phút {s} giây")
             return f"Đang có {len(_active_timers)} hẹn giờ: " + "; ".join(parts) + "."
 
         # Default: dat_hen_gio
-        if minutes <= 0:
-            return "Số phút hẹn giờ phải lớn hơn 0."
+        if minutes <= 0 or minutes > 720:
+            return "Số phút hẹn giờ phải lớn hơn 0 và không quá 720 phút (12 tiếng)."
 
         duration_sec = minutes * 60.0
         _timer_counter += 1
         timer_id = _timer_counter
+        due_ts = now + duration_sec
 
-        def _on_timer_done(tid=timer_id, msg=reminder):
-            with _timer_lock:
-                _active_timers[:] = [t for t in _active_timers if t["id"] != tid]
-            _speak_alert_sync(msg)
+        _arm_timer(timer_id, reminder, due_ts)
 
-        t_obj = threading.Timer(duration_sec, _on_timer_done)
-        t_obj.daemon = True
-        t_obj.start()
+    _save_persistent_timers()
 
-        _active_timers.append(
-            {
-                "id": timer_id,
-                "label": reminder,
-                "end_time": now + duration_sec,
-                "timer": t_obj,
-            }
-        )
-
-    if minutes >= 1:
+    if minutes == 1.5:
+        time_desc = "một phút rưỡi"
+    elif minutes >= 1:
         time_desc = f"{int(minutes) if minutes.is_integer() else minutes} phút"
     else:
         time_desc = f"{int(duration_sec)} giây"
-    print(f"⏰ [Tool Call -> Timer]: Đặt hẹn giờ {time_desc} - '{reminder}'")
-    return f"Đã đặt đồng hồ đếm ngược {time_desc} với lời nhắc: {reminder}"
 
+    return f"Đã đặt đồng hồ đếm ngược {time_desc} với lời nhắc: {reminder}"

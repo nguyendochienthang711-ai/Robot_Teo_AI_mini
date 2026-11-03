@@ -29,8 +29,13 @@ env/
 teo_todo.json
 teo_memory.json
 teo_bookmarks.json
+teo_timers.json
+teo_settings.json
 screenshots/
 .teo_music_profile/
+cache/
+logs/
+tai_lieu/
 
 # Local AI Models (Piper ONNX weights)
 models/

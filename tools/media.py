@@ -1,21 +1,29 @@
 """
 Group 5: Entertainment, YouTube Background Audio & System Media Control.
-- Background YouTube player (mpv / ffplay / headless Edge or Chrome) without showing windows.
-- Virtual media keys (play/pause, next, previous, volume up/down, mute).
-- Fully compatible with pycaw auto-ducking.
+- Background YouTube player using mpv with IPC named pipe support (TL-11).
+- Direct IPC controls for pause/resume, playlist next/prev, volume without altering whole OS.
+- Off-screen browser profile stored in LOCALAPPDATA instead of CWD (TL-18).
 """
 
 import ctypes
+import json
+import logging
 import os
 import re
 import shutil
 import subprocess
 import sys
+import time
 import urllib.parse
-import webbrowser
 from pathlib import Path
 
 import requests
+
+import config
+
+log = logging.getLogger("teo.media")
+
+MPV_PIPE = r"\\.\pipe\teo-mpv"
 
 VK_MEDIA_NEXT_TRACK = 0xB0
 VK_MEDIA_PREV_TRACK = 0xB1
@@ -28,9 +36,20 @@ VK_VOLUME_UP = 0xAF
 _bg_music_proc: subprocess.Popen | None = None
 
 
+def _mpv_cmd(*cmd) -> bool:
+    """Send JSON IPC command to background mpv process (TL-11)."""
+    try:
+        with open(MPV_PIPE, "wb", buffering=0) as f:
+            f.write(json.dumps({"command": list(cmd)}).encode("utf-8") + b"\n")
+        return True
+    except OSError:
+        return False
+
+
 def _stop_background_music():
-    """Kill existing background music process if active."""
+    """Kill existing background music process and close IPC session."""
     global _bg_music_proc
+    _mpv_cmd("quit")
     if _bg_music_proc is not None:
         try:
             if _bg_music_proc.poll() is None:
@@ -48,37 +67,51 @@ def _stop_background_music():
         _bg_music_proc = None
 
 
-def _play_youtube_background(url: str) -> str:
+def _play_youtube_background(url_or_query: str) -> str | None:
     """
     Play YouTube music in background without opening any visible window:
-    1. mpv --no-video (if available)
-    2. yt-dlp + ffplay -nodisp (if available)
-    3. Headless/Off-screen Edge/Chrome with autoplay and dedicated profile (default on Windows).
+    1. mpv with IPC server named pipe (preferred)
+    2. yt-dlp + ffplay
+    3. Off-screen Edge/Chrome with dedicated profile in LOCALAPPDATA
+    Returns engine name on success, or None on failure (TL-11).
     """
     global _bg_music_proc
     _stop_background_music()
 
     no_win_flag = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
-    # Tier 1: mpv --no-video
+    # Tier 1: mpv --no-video with IPC
     mpv_bin = shutil.which("mpv")
     if mpv_bin:
-        _bg_music_proc = subprocess.Popen(
-            [mpv_bin, "--no-video", "--ytdl=yes", url],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            creationflags=no_win_flag,
-        )
-        return "mpv (chạy ngầm)"
+        target = url_or_query if url_or_query.startswith("http") else f"ytdl://ytsearch5:{url_or_query}"
+        try:
+            _bg_music_proc = subprocess.Popen(
+                [
+                    mpv_bin,
+                    "--no-video",
+                    "--really-quiet",
+                    f"--input-ipc-server={MPV_PIPE}",
+                    "--ytdl-format=bestaudio/best",
+                    target,
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=no_win_flag,
+            )
+            time.sleep(1.0)
+            if _bg_music_proc.poll() is None:
+                return "mpv (IPC)"
+        except Exception as e:
+            log.warning("mpv execution failed: %s", e)
 
     # Tier 2: yt-dlp + ffplay -nodisp
     ytdlp_bin = shutil.which("yt-dlp")
     ffplay_bin = shutil.which("ffplay")
-    if ytdlp_bin and ffplay_bin:
+    if ytdlp_bin and ffplay_bin and url_or_query.startswith("http"):
         try:
             audio_url = (
                 subprocess.check_output(
-                    [ytdlp_bin, "-g", "-f", "bestaudio", url],
+                    [ytdlp_bin, "-g", "-f", "bestaudio", url_or_query],
                     stderr=subprocess.DEVNULL,
                     timeout=6.0,
                     creationflags=no_win_flag,
@@ -94,7 +127,9 @@ def _play_youtube_background(url: str) -> str:
                     stderr=subprocess.DEVNULL,
                     creationflags=no_win_flag,
                 )
-                return "ffplay (chạy ngầm)"
+                time.sleep(0.5)
+                if _bg_music_proc.poll() is None:
+                    return "ffplay (ngầm)"
         except Exception:
             pass
 
@@ -108,7 +143,11 @@ def _play_youtube_background(url: str) -> str:
     ]
     browser_bin = next((b for b in browser_candidates if b and os.path.exists(b)), None)
     if browser_bin:
-        profile_dir = (Path.cwd() / ".teo_music_profile").resolve()
+        local_app = os.environ.get("LOCALAPPDATA") or str(config.BASE_DIR)
+        profile_dir = Path(local_app) / "Teo" / "browser_profile"
+        profile_dir.mkdir(parents=True, exist_ok=True)
+
+        url = url_or_query if url_or_query.startswith("http") else f"https://www.youtube.com/results?search_query={urllib.parse.quote_plus(url_or_query)}"
         autoplay_url = f"{url}&autoplay=1" if "?" in url else f"{url}?autoplay=1"
         startupinfo = None
         if sys.platform == "win32":
@@ -132,15 +171,15 @@ def _play_youtube_background(url: str) -> str:
             startupinfo=startupinfo,
             creationflags=no_win_flag,
         )
-        return "trình phát ngầm không cửa sổ"
+        time.sleep(0.5)
+        if _bg_music_proc.poll() is None:
+            return "trình phát ngầm không cửa sổ"
 
-    # Fallback
-    webbrowser.open(url)
-    return "trình duyệt"
+    return None
 
 
 def _send_media_key(vk_code: int, repeat: int = 1):
-    """Simulate Windows media key press."""
+    """Simulate Windows media key press as fallback."""
     if sys.platform != "win32":
         return
     try:
@@ -171,7 +210,7 @@ def _find_youtube_video_url(query: str) -> str:
 
 
 def tool_phat_nhac_va_dieu_khien_media(args: dict) -> str:
-    """Play YouTube music in background without window or control media playback."""
+    """Play YouTube music in background or control media playback (TL-11)."""
     action = args.get("thao_tac", "phat_nhac")
     query = (args.get("tu_khoa") or "").strip()
 
@@ -180,7 +219,8 @@ def tool_phat_nhac_va_dieu_khien_media(args: dict) -> str:
             return "Sếp muốn nghe bài hát gì thì nói tên bài hát cho em mở nhé."
         url = _find_youtube_video_url(query)
         engine = _play_youtube_background(url)
-        print(f"🎵 [Tool Call -> Media ({engine})]: Phát ngầm '{query}' -> {url}")
+        if not engine:
+            return "ERROR player_failed: Không thể khởi chạy trình phát nhạc ngầm (hãy kiểm tra mpv hoặc yt-dlp trên máy)."
         return f"Đã bật ngầm bài hát '{query}' cho sếp thưởng thức."
 
     elif action == "dung_nhac":
@@ -188,30 +228,39 @@ def tool_phat_nhac_va_dieu_khien_media(args: dict) -> str:
         _send_media_key(VK_MEDIA_STOP)
         return "Đã tắt trình phát nhạc ngầm."
 
-    elif action in {"tam_dung", "tiep_tuc"}:
-        _send_media_key(VK_MEDIA_PLAY_PAUSE)
-        label = "tạm dừng" if action == "tam_dung" else "phát tiếp"
-        return f"Đã {label} trình phát nhạc."
+    elif action == "tam_dung":
+        if not _mpv_cmd("set_property", "pause", True):
+            _send_media_key(VK_MEDIA_PLAY_PAUSE)
+        return "Đã tạm dừng trình phát nhạc."
+
+    elif action == "tiep_tuc":
+        if not _mpv_cmd("set_property", "pause", False):
+            _send_media_key(VK_MEDIA_PLAY_PAUSE)
+        return "Đã tiếp tục trình phát nhạc."
 
     elif action == "bai_tiep":
-        _send_media_key(VK_MEDIA_NEXT_TRACK)
+        if not _mpv_cmd("playlist-next"):
+            _send_media_key(VK_MEDIA_NEXT_TRACK)
         return "Đã chuyển sang bài nhạc tiếp theo."
 
     elif action == "bai_truoc":
-        _send_media_key(VK_MEDIA_PREV_TRACK)
+        if not _mpv_cmd("playlist-prev"):
+            _send_media_key(VK_MEDIA_PREV_TRACK)
         return "Đã quay lại bài nhạc trước đó."
 
     elif action == "tang_am":
-        _send_media_key(VK_VOLUME_UP, repeat=5)
-        return "Đã tăng âm lượng hệ thống lên cho sếp."
+        if not _mpv_cmd("add", "volume", 10):
+            _send_media_key(VK_VOLUME_UP, repeat=5)
+        return "Đã tăng âm lượng cho sếp."
 
     elif action == "giam_am":
-        _send_media_key(VK_VOLUME_DOWN, repeat=5)
-        return "Đã giảm nhỏ âm lượng hệ thống xuống."
+        if not _mpv_cmd("add", "volume", -10):
+            _send_media_key(VK_VOLUME_DOWN, repeat=5)
+        return "Đã giảm nhỏ âm lượng xuống."
 
     elif action == "tat_tieng":
-        _send_media_key(VK_VOLUME_MUTE)
+        if not _mpv_cmd("cycle", "mute"):
+            _send_media_key(VK_VOLUME_MUTE)
         return "Đã bật hoặc tắt chế độ im lặng âm thanh."
 
     return f"Thao tác media '{action}' không hợp lệ."
-

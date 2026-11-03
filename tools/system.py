@@ -2,26 +2,42 @@
 Group 4 & Group 6: System Diagnostics, TTS Voice Switcher & 3D Robot Omni/Motion Bundles.
 - Laptop health (CPU, RAM, Battery, Disk, NVIDIA RTX 3050 GPU temperature and VRAM).
 - Full hardware specifications (CPU model, physical/logical cores, total RAM, GPU, OS).
-- TTS voice switcher (chipmunk, diemdam, tramvang, google).
-- 3D MuJoCo Motion Bundles & 3-Wheel Omni Kiwi Drive (LeKiwi) holonomic navigation.
+- TTS voice switcher with model validation & persistent settings (TL-17).
+- 3D MuJoCo Motion Bundles & 3-Wheel Omni Kiwi Drive (LeKiwi) with clamped motion & 2-way UDP ACK (TL-03).
 """
 
 import json
+import logging
+import math
 import platform
 import socket
 import subprocess
 import sys
+import uuid
+from typing import Any
 
 import psutil
 
 import config
 from config import PIPER_PROFILES, UDP_SIM_TARGET
+from tools.common import update_json
 
 if sys.platform == "win32":
     import winreg
 
+log = logging.getLogger("teo.system")
 
 # --- 3D MuJoCo Simulation: Motion Bundles & 3-Wheel Omni Kiwi Drive (LeKiwi) ---
+
+BASE_MOTIONS = {
+    "moonwalk_dance",
+    "move_forward",
+    "move_backward",
+    "slide_left",
+    "slide_right",
+    "circle_strafe",
+    "spin_around",
+}
 
 VALID_MOTIONS = {
     "wave_greeting",
@@ -30,12 +46,6 @@ VALID_MOTIONS = {
     "look_around",
     "happy_dance",
     "moonwalk_dance",
-    "move_forward",
-    "move_backward",
-    "slide_left",
-    "slide_right",
-    "circle_strafe",
-    "spin_around",
     "idle",
 }
 
@@ -48,6 +58,10 @@ VALID_OMNI_MOVES = {
     "spin_around",
     "idle",
 }
+
+MAX_BODY_SEC = 8.0
+MAX_BASE_SEC = 3.0
+MIN_SEC = 0.5
 
 MOTION_LABELS = {
     "wave_greeting": "vẫy tay chào và nghiêng đầu",
@@ -70,51 +84,85 @@ OMNI_MOVE_LABELS = {
 }
 
 
-def send_motion_to_3d_sim(motion: str, duration: float = 3.0, bpm: int = 120):
-    """Send UDP motion packet to 3D MuJoCo simulation runner."""
+def build_motion(motion: str, duration: Any, bpm: Any, is_omni: bool = False) -> tuple[str, float, int]:
+    """Validate motion identifier, enforce strict duration clamping and finite numbers (TL-03)."""
+    allowed = VALID_OMNI_MOVES if is_omni else VALID_MOTIONS
+    if motion not in allowed:
+        raise ValueError(f"unknown motion: {motion}")
+
     try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        payload = json.dumps({"motion": motion, "duration": duration, "bpm": bpm}).encode("utf-8")
-        sock.sendto(payload, UDP_SIM_TARGET)
-        sock.close()
-    except Exception:
-        pass
+        dur = float(duration)
+    except (TypeError, ValueError):
+        dur = 2.0 if is_omni else 3.5
+
+    if not math.isfinite(dur):
+        raise ValueError("duration must be finite")
+
+    cap = MAX_BASE_SEC if (motion in BASE_MOTIONS or motion == "happy_dance" or is_omni) else MAX_BODY_SEC
+    clamped_dur = max(MIN_SEC, min(cap, dur))
+
+    try:
+        bpm_val = int(bpm)
+    except (TypeError, ValueError):
+        bpm_val = 120 if is_omni else 125
+    clamped_bpm = max(60, min(160, bpm_val))
+
+    return motion, clamped_dur, clamped_bpm
+
+
+def send_motion_to_3d_sim(motion: str, duration: float = 3.0, bpm: int = 120, timeout: float = 0.4) -> bool:
+    """Send UDP motion packet to 3D MuJoCo sim with 2-way ACK check (TL-03)."""
+    msg_id = uuid.uuid4().hex[:8]
+    payload = json.dumps({
+        "id": msg_id,
+        "motion": motion,
+        "duration": duration,
+        "bpm": bpm,
+    }).encode("utf-8")
+
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.settimeout(timeout)
+            s.sendto(payload, UDP_SIM_TARGET)
+            data, _ = s.recvfrom(256)
+            ack_msg = json.loads(data.decode("utf-8"))
+            return ack_msg.get("ack") == msg_id
+    except (OSError, ValueError):
+        return False
 
 
 def tool_dieu_khien_co_the_teo(args: dict) -> str:
     """Execute expressive upper-body gesture or Omni dance bundle (wave, nod, shake, happy_dance, moonwalk_dance)."""
-    motion = args.get("hanh_dong") or args.get("goi_chuyen_dong") or "wave_greeting"
-    if motion not in VALID_MOTIONS:
-        motion = "wave_greeting"
-    dur = float(args.get("so_giay", 3.5))
-    bpm = int(args.get("bpm", 125))
-    send_motion_to_3d_sim(motion, dur, bpm)
-    desc = MOTION_LABELS.get(motion) or OMNI_MOVE_LABELS.get(motion, motion)
-    print(f"🤖 [Tool Call -> 3D Motion Bundle]: Kích hoạt '{motion}' ({desc}) trong {dur}s (BPM={bpm})")
-    return f"Đã thực hiện cử chỉ {motion} ({desc}) trong {dur} giây thành công."
+    motion = args.get("hanh_dong") or "wave_greeting"
+    try:
+        motion, dur, bpm = build_motion(motion, args.get("so_giay", 3.5), args.get("bpm", 125), is_omni=False)
+    except ValueError as err:
+        return f"ERROR invalid_arguments: {err}"
+
+    ok = send_motion_to_3d_sim(motion, dur, bpm)
+    if ok is False:
+        return "ERROR robot_unreachable: motion was NOT executed."
+
+    desc = MOTION_LABELS.get(motion, motion)
+    dur_str = str(round(dur, 1)).replace(".", ",")
+    return f"Đã thực hiện cử chỉ {motion} ({desc}) trong {dur_str} giây."
 
 
 def tool_di_chuyen_da_huong_omni(args: dict) -> str:
-    """
-    Control 3-Wheel Omni Kiwi Drive (LeKiwi) holonomic base on desk:
-    move_forward, move_backward, slide_left, slide_right, circle_strafe, spin_around.
-    Enforces 1.0-3.0s safety duration limit and 3 IR anti-drop cliff sensors check.
-    """
-    move = args.get("huong_di") or args.get("hanh_dong") or "slide_left"
-    if move not in VALID_OMNI_MOVES:
-        move = "slide_left"
+    """Control 3-Wheel Omni Kiwi Drive (LeKiwi) holonomic base on desk with strict clamping (TL-03)."""
+    move = args.get("huong_di") or "slide_left"
+    try:
+        move, dur, bpm = build_motion(move, args.get("so_giay", 2.0), args.get("bpm", 120), is_omni=True)
+    except ValueError as err:
+        return f"ERROR invalid_arguments: {err}"
 
-    raw_dur = float(args.get("so_giay", 2.0))
-    dur = max(1.0, min(3.0, raw_dur))
-    bpm = int(args.get("bpm", 120))
+    ok = send_motion_to_3d_sim(move, dur, bpm)
+    if ok is False:
+        return "ERROR robot_unreachable: motion was NOT executed."
 
-    send_motion_to_3d_sim(move, dur, bpm)
     desc = OMNI_MOVE_LABELS.get(move, move)
-    print(f"🛞 [Tool Call -> 3-Wheel Omni Kiwi Drive]: '{move}' ({desc}) trong {dur}s [3 IR chống rơi: AN TOÀN]")
-    return (
-        f"Đế 3 bánh Omni đã {desc} ({move}) trong {dur} giây an toàn "
-        "với 3 cảm biến hồng ngoại chống rơi mép bàn."
-    )
+    dur_str = str(round(dur, 1)).replace(".", ",")
+    return f"Đế 3 bánh Omni đã {desc} ({move}) trong {dur_str} giây."
 
 
 # --- Laptop Health & Hardware Specs ---
@@ -162,7 +210,7 @@ def get_hardware_specs() -> str:
     # 2. RAM
     ram_gb = round(psutil.virtual_memory().total / (1024**3), 1)
 
-    # 3. GPU
+    # 3. GPU (filter basic display adapter - TL-20)
     gpus = []
     if sys.platform == "win32":
         try:
@@ -174,7 +222,7 @@ def get_hardware_specs() -> str:
                     sub_key = winreg.OpenKey(key, sub)
                     try:
                         name, _ = winreg.QueryValueEx(sub_key, "DriverDesc")
-                        if name and name not in gpus:
+                        if name and "Basic Display" not in name and name not in gpus:
                             gpus.append(name)
                     except Exception:
                         pass
@@ -218,9 +266,9 @@ def get_hardware_specs() -> str:
 
 
 def tool_kiem_tra_suc_khoe_laptop(args: dict) -> str:
-    """Check live laptop health (CPU, RAM, Battery, Disk, GPU) or full specs."""
+    """Check live laptop health or full hardware specs. Prevents dGPU wake-up in fast mode (TL-20)."""
     mode = args.get("che_do", "nhanh")
-    cpu = psutil.cpu_percent(interval=0.15)
+    cpu = psutil.cpu_percent(interval=0.05)
     ram = psutil.virtual_memory().percent
     bat = psutil.sensors_battery()
     bat_info = (
@@ -240,7 +288,9 @@ def tool_kiem_tra_suc_khoe_laptop(args: dict) -> str:
             except Exception:
                 pass
     disk_info = ", ".join(disk_parts) if disk_parts else ""
-    gpu_live = get_gpu_live_status()
+
+    # In fast mode, do NOT wake dGPU to save power (TL-20)
+    gpu_live = get_gpu_live_status() if mode == "chi_tiet" else ""
 
     live_str = f"Laptop của sếp đang dùng {cpu}% CPU, {ram}% RAM, pin ở mức {bat_info}"
     if disk_info:
@@ -251,15 +301,11 @@ def tool_kiem_tra_suc_khoe_laptop(args: dict) -> str:
 
     if mode == "chi_tiet":
         specs = get_hardware_specs()
-        res = f"{specs} Trạng thái hiện tại: {live_str}"
-    else:
-        res = live_str
-
-    print(f"💻 [Tool Call -> Laptop Health ({mode})]: {res}")
-    return res
+        return f"{specs} Trạng thái hiện tại: {live_str}"
+    return live_str
 
 
-# --- Voice Profile Switcher ---
+# --- Voice Profile Switcher (TL-17) ---
 
 VOICE_LABELS = {
     "chipmunk": "Tèo Sóc Chuột vui nhộn",
@@ -270,21 +316,30 @@ VOICE_LABELS = {
 
 
 def tool_doi_giong_noi_teo(args: dict) -> str:
-    """Switch TTS voice profile between chipmunk, diemdam, tramvang, and google."""
+    """Switch TTS voice profile with model validation and settings persistence (TL-17)."""
     voice = (args.get("giong") or "chipmunk").lower().strip()
     if voice not in VOICE_LABELS:
         return (
             f"Giọng '{voice}' không hợp lệ. Sếp có thể chọn: "
             "chipmunk (Sóc chuột), diemdam (Nam trầm điềm đạm), tramvang (Nam trầm vang), hoặc google."
         )
-    config.TTS_MODE = voice
+
+    # Validate that the Piper model file can actually be loaded (TL-17)
     if voice in PIPER_PROFILES:
         try:
             from audio_io import get_piper_voice
-
-            get_piper_voice(PIPER_PROFILES[voice]["model"])
+            model_path = PIPER_PROFILES[voice]["model"]
+            if not model_path.exists() or get_piper_voice(model_path) is None:
+                return f"ERROR voice_unavailable: model for '{voice}' is not installed. Voice unchanged."
         except Exception:
             pass
+
+    config.TTS_MODE = voice
+    # Persist chosen voice profile to teo_settings.json
+    try:
+        update_json(config.SETTINGS_FILE, {}, lambda s: s.update({"tts_mode": voice}))
+    except Exception:
+        pass
+
     label = VOICE_LABELS[voice]
-    print(f"🔊 [Tool Call -> Voice Switch]: Đổi sang '{voice}' ({label})")
     return f"Đã đổi giọng nói của em sang chế độ {label} theo ý sếp."

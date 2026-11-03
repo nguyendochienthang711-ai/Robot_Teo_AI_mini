@@ -1,71 +1,129 @@
 """
 Dispatcher: Maps tool function names to implementation handlers and executes tool calls.
+Enforces strict fail-closed validation, lazy loading, and security policies (TL-02, TL-04, TL-14, TL-15).
 """
 
+import importlib
 import json
+import logging
+from typing import Any
 
-from tools.documents import (
-    tool_doc_va_tom_tat_tai_lieu,
-    tool_ghi_nho_thong_tin_dai_han,
-    tool_xu_ly_bo_nho_tam_clipboard,
-)
-from tools.media import tool_phat_nhac_va_dieu_khien_media
-from tools.search import tool_tra_cuu_thong_tin_truc_tuyen
-from tools.secretary import (
-    tool_dong_ho_tap_trung_pomodoro,
-    tool_quan_ly_cong_viec,
-)
-from tools.system import (
-    tool_di_chuyen_da_huong_omni,
-    tool_dieu_khien_co_the_teo,
-    tool_doi_giong_noi_teo,
-    tool_kiem_tra_suc_khoe_laptop,
-)
+from jsonschema import Draft202012Validator
 
-TOOL_DISPATCH = {
-    # Nhóm 1: Thư ký cá nhân & Thời gian
-    "quan_ly_cong_viec": tool_quan_ly_cong_viec,
-    "dong_ho_tap_trung_pomodoro": tool_dong_ho_tap_trung_pomodoro,
-    # Nhóm 2: Đọc tài liệu, Clipboard & Bộ nhớ dài hạn
-    "doc_va_tom_tat_tai_lieu": tool_doc_va_tom_tat_tai_lieu,
-    "xu_ly_bo_nho_tam_clipboard": tool_xu_ly_bo_nho_tam_clipboard,
-    "ghi_nho_thong_tin_dai_han": tool_ghi_nho_thong_tin_dai_han,
-    # Nhóm 3: Thị giác màn hình máy tính
-    "nhin_man_hinh_laptop": None,  # Nạp động theo nhu cầu để tối ưu tài nguyên
-    # Nhóm 4: Điều khiển laptop & Chẩn đoán phần cứng
-    "kiem_tra_suc_khoe_laptop": tool_kiem_tra_suc_khoe_laptop,
-    # Nhóm 5: Giải trí, Âm nhạc & Đổi giọng
-    "phat_nhac_va_dieu_khien_media": tool_phat_nhac_va_dieu_khien_media,
-    "doi_giong_noi_teo": tool_doi_giong_noi_teo,
-    # Nhóm 6: Cử chỉ thân trên & Đế 3 bánh Omni Kiwi Drive (LeKiwi)
-    "dieu_khien_co_the_teo": tool_dieu_khien_co_the_teo,
-    "di_chuyen_da_huong_omni": tool_di_chuyen_da_huong_omni,
-    # Nhóm 7: Tra cứu thời tiết & Tìm kiếm trực tuyến
-    "tra_cuu_thong_tin_truc_tuyen": tool_tra_cuu_thong_tin_truc_tuyen,
+from tools.policy import (
+    MAX_CALLS_PER_TURN,
+    TOOL_SPECS,
+    ToolResult,
+    TurnContext,
+    audit_log,
+)
+from tools.schemas import TOOLS_SCHEMA
+
+log = logging.getLogger("teo.dispatcher")
+
+_VALIDATORS = {
+    t["function"]["name"]: Draft202012Validator(t["function"]["parameters"])
+    for t in TOOLS_SCHEMA
+}
+
+_REGISTRY = {
+    "quan_ly_cong_viec": ("tools.secretary", "tool_quan_ly_cong_viec"),
+    "dong_ho_tap_trung_pomodoro": ("tools.secretary", "tool_dong_ho_tap_trung_pomodoro"),
+    "kiem_tra_suc_khoe_laptop": ("tools.system", "tool_kiem_tra_suc_khoe_laptop"),
+    "doi_giong_noi_teo": ("tools.system", "tool_doi_giong_noi_teo"),
+    "dieu_khien_co_the_teo": ("tools.system", "tool_dieu_khien_co_the_teo"),
+    "di_chuyen_da_huong_omni": ("tools.system", "tool_di_chuyen_da_huong_omni"),
+    "doc_va_tom_tat_tai_lieu": ("tools.documents", "tool_doc_va_tom_tat_tai_lieu"),
+    "xu_ly_bo_nho_tam_clipboard": ("tools.documents", "tool_xu_ly_bo_nho_tam_clipboard"),
+    "ghi_nho_thong_tin_dai_han": ("tools.documents", "tool_ghi_nho_thong_tin_dai_han"),
+    "phat_nhac_va_dieu_khien_media": ("tools.media", "tool_phat_nhac_va_dieu_khien_media"),
+    "nhin_man_hinh_laptop": ("tools.vision", "tool_nhin_man_hinh_laptop"),
+    "tra_cuu_thong_tin_truc_tuyen": ("tools.search", "tool_tra_cuu_thong_tin_truc_tuyen"),
 }
 
 
-def execute_tool_call(func_name: str, args_json: str) -> str:
-    """Execute tool call and return concise spoken Vietnamese output."""
+def _reject_constant(c: Any) -> None:
+    raise ValueError(f"invalid JSON constant: {c}")
+
+
+def _parse_args(args_json: str) -> dict:
+    if not args_json or not args_json.strip():
+        return {}
+    args = json.loads(args_json, parse_constant=_reject_constant)
+    if not isinstance(args, dict):
+        raise ValueError("arguments must be a JSON object")
+    return args
+
+
+def _get_handler(name: str):
+    if name not in _REGISTRY:
+        return None
+    mod_name, fn_name = _REGISTRY[name]
+    mod = importlib.import_module(mod_name)
+    return getattr(mod, fn_name)
+
+
+def execute_tool_call(func_name: str, args_json: str, ctx: TurnContext | None = None) -> str:
+    """Execute tool call with strict fail-closed validation, policy guardrails, and audit logging."""
+    if ctx is None:
+        ctx = TurnContext()
+
+    # Rate limiting per turn (TL-04)
+    ctx.calls += 1
+    if ctx.calls > MAX_CALLS_PER_TURN:
+        audit_log(func_name, {}, False, ctx.tainted, 0)
+        return "ERROR rate_limit: maximum tool calls per turn exceeded."
+
+    # Parse and reject invalid JSON / constants (TL-02)
     try:
-        args = json.loads(args_json) if args_json else {}
-        if not isinstance(args, dict):
-            args = {}
-    except Exception:
-        args = {}
+        args = _parse_args(args_json)
+    except ValueError as err:
+        log.warning("JSON parse failure in %s: %s", func_name, err)
+        audit_log(func_name, {}, False, ctx.tainted, 0)
+        return "ERROR invalid_arguments: arguments were not valid JSON. Ask the user or retry once."
 
-    if func_name == "nhin_man_hinh_laptop":
-        from tools.vision import tool_nhin_man_hinh_laptop
+    # Validate against JSON schema (TL-02, TL-16)
+    validator = _VALIDATORS.get(func_name)
+    if validator:
+        errors = sorted(validator.iter_errors(args), key=lambda e: list(e.path))
+        if errors:
+            e = errors[0]
+            field_path = "/".join(map(str, e.path)) or "root"
+            log.warning("Schema validation error in %s at %s: %s", func_name, field_path, e.message)
+            audit_log(func_name, args, False, ctx.tainted, 0)
+            return f"ERROR invalid_arguments: {field_path}: {e.message}"
 
-        handler = tool_nhin_man_hinh_laptop
-    else:
-        handler = TOOL_DISPATCH.get(func_name)
-
-    if not handler:
-        return "Công cụ không tồn tại."
+    # Policy layer check for untrusted data / tainted turn (TL-04)
+    spec = TOOL_SPECS.get(func_name)
+    if ctx.tainted and spec and spec.risk in ("write", "destructive", "physical") and not ctx.confirmed:
+        log.warning("Blocked action %s due to tainted context without confirmation", func_name)
+        audit_log(func_name, args, False, ctx.tainted, 0)
+        return "ERROR security_policy: untrusted data detected in this turn. Physical confirmation is required before executing this action."
 
     try:
-        return handler(args)
+        handler = _get_handler(func_name)
+        if not handler:
+            audit_log(func_name, args, False, ctx.tainted, 0)
+            return f"ERROR unknown_tool: {func_name} does not exist."
+
+        raw_result = handler(args)
+
+        if isinstance(raw_result, ToolResult):
+            if raw_result.tainted or (spec and spec.untrusted_output):
+                ctx.tainted = True
+            output_text = raw_result.text
+            ok = raw_result.ok
+        else:
+            if spec and spec.untrusted_output:
+                ctx.tainted = True
+            output_text = str(raw_result)
+            ok = not output_text.startswith("ERROR")
+
+        audit_log(func_name, args, ok, ctx.tainted, len(output_text))
+        return output_text
+
     except Exception as e:
-        print(f"⚠️ [Tool Error - {func_name}]: {e}")
-        return f"Đã xảy ra lỗi khi thực thi công cụ {func_name}: {e}"
+        log.exception("Tool execution error in %s", func_name)
+        audit_log(func_name, args, False, ctx.tainted, 0)
+        # Never leak raw python traceback to LLM / spoken output (TL-15)
+        return f"ERROR tool_failed: {func_name}. Tell the user briefly that it did not work."

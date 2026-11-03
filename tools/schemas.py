@@ -1,6 +1,7 @@
 """
 English function calling schemas for Teo Desktop Robot Secretary.
 Concise English prompts save input tokens, preserve prompt caching, and reduce latency.
+Strict validation via additionalProperties: False (TL-16).
 """
 
 TOOLS_SCHEMA = [
@@ -12,6 +13,7 @@ TOOLS_SCHEMA = [
             "description": "Manage the user's Todo task list: view all tasks, add a new task, mark a task done, delete a specific task, or clear all tasks.",
             "parameters": {
                 "type": "object",
+                "additionalProperties": False,
                 "properties": {
                     "thao_tac": {
                         "type": "string",
@@ -38,6 +40,7 @@ TOOLS_SCHEMA = [
             "description": "Check laptop diagnostics (CPU, RAM, battery, free disk space, GPU temp/VRAM) or full hardware specifications.",
             "parameters": {
                 "type": "object",
+                "additionalProperties": False,
                 "properties": {
                     "che_do": {
                         "type": "string",
@@ -55,6 +58,7 @@ TOOLS_SCHEMA = [
             "description": "Switch Teo robot's TTS voice profile during conversation.",
             "parameters": {
                 "type": "object",
+                "additionalProperties": False,
                 "properties": {
                     "giong": {
                         "type": "string",
@@ -73,6 +77,7 @@ TOOLS_SCHEMA = [
             "description": "Summarize or read aloud documents (.pdf, .docx, .pptx, .txt, .md) with automatic sentence-level bookmarking.",
             "parameters": {
                 "type": "object",
+                "additionalProperties": False,
                 "properties": {
                     "thao_tac": {
                         "type": "string",
@@ -81,7 +86,7 @@ TOOLS_SCHEMA = [
                     },
                     "duong_dan": {
                         "type": "string",
-                        "description": "File path or filename (optional when continuing/stopping an active bookmarked document).",
+                        "description": "File path or filename in allowed document directories.",
                     },
                     "so_cau_doc": {
                         "type": "integer",
@@ -99,6 +104,7 @@ TOOLS_SCHEMA = [
             "description": "Search and play music/videos on YouTube or control system media playback (play, pause, next, previous, volume).",
             "parameters": {
                 "type": "object",
+                "additionalProperties": False,
                 "properties": {
                     "thao_tac": {
                         "type": "string",
@@ -128,9 +134,10 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "dieu_khien_co_the_teo",
-            "description": "Trigger 3D robot upper-body gestures and Omni dance bundles (head, arms, 3-wheel Omni rhythm): wave, nod, shake, look around, happy dance, or moonwalk dance.",
+            "description": "Trigger 3D robot upper-body gestures and dance bundles: wave greeting, nod yes, shake no, look around, happy dance, or moonwalk dance.",
             "parameters": {
                 "type": "object",
+                "additionalProperties": False,
                 "properties": {
                     "hanh_dong": {
                         "type": "string",
@@ -143,15 +150,15 @@ TOOLS_SCHEMA = [
                             "moonwalk_dance",
                             "idle",
                         ],
-                        "description": "Gesture/dance bundle: wave_greeting, nod_yes, shake_no, look_around, happy_dance, moonwalk_dance (lateral omni slide dance), idle.",
+                        "description": "Gesture/dance bundle: wave_greeting, nod_yes, shake_no, look_around, happy_dance, moonwalk_dance, idle.",
                     },
                     "so_giay": {
                         "type": "number",
-                        "description": "Duration in seconds (default 3.5).",
+                        "description": "Duration in seconds (clamped between 0.5 and 8.0s, default 3.5).",
                     },
                     "bpm": {
                         "type": "integer",
-                        "description": "Dance tempo in BPM (default 125).",
+                        "description": "Dance tempo in BPM (clamped between 60 and 160, default 125).",
                     },
                 },
                 "required": ["hanh_dong"],
@@ -162,9 +169,10 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "di_chuyen_da_huong_omni",
-            "description": "Navigate the 3-Wheel Omni Kiwi Drive (LeKiwi) holonomic base on the desk: forward, backward, strafe left/right while keeping eye contact, circle strafe, or spin.",
+            "description": "Navigate the 3-Wheel Omni Kiwi Drive (LeKiwi) base on the desk: move forward, backward, slide left/right keeping eye contact, circle strafe, or spin.",
             "parameters": {
                 "type": "object",
+                "additionalProperties": False,
                 "properties": {
                     "huong_di": {
                         "type": "string",
@@ -177,11 +185,11 @@ TOOLS_SCHEMA = [
                             "spin_around",
                             "idle",
                         ],
-                        "description": "Omni direction: move_forward, move_backward, slide_left (strafe left keeping eye contact), slide_right (strafe right keeping eye contact), circle_strafe (arc around desk facing user), spin_around, idle.",
+                        "description": "Omni direction: move_forward, move_backward, slide_left, slide_right, circle_strafe, spin_around, idle.",
                     },
                     "so_giay": {
                         "type": "number",
-                        "description": "Move duration in seconds (clamped between 1.0 and 3.0s for desk safety, default 2.0).",
+                        "description": "Move duration in seconds (clamped between 0.5 and 3.0s for desk safety, default 2.0).",
                     },
                 },
                 "required": ["huong_di"],
@@ -193,9 +201,10 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "xu_ly_bo_nho_tam_clipboard",
-            "description": "Read text/code recently copied to the system clipboard (Ctrl+C) to translate, summarize, or debug, or write text to the clipboard.",
+            "description": "Read text recently copied to the system clipboard (Ctrl+C) or write text to the clipboard.",
             "parameters": {
                 "type": "object",
+                "additionalProperties": False,
                 "properties": {
                     "thao_tac": {
                         "type": "string",
@@ -215,17 +224,14 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "nhin_man_hinh_laptop",
-            "description": "Capture a screenshot of the current laptop screen and analyze diagrams, slides, or error messages using vision.",
+            "description": "Capture a screenshot of the active window and answer questions about what is displayed.",
             "parameters": {
                 "type": "object",
+                "additionalProperties": False,
                 "properties": {
                     "cau_hoi": {
                         "type": "string",
-                        "description": "Question or task about what is shown on the laptop screen.",
-                    },
-                    "luu_file": {
-                        "type": "boolean",
-                        "description": "Set true to save screenshot to disk (default false).",
+                        "description": "Question or analysis request about the active screen window.",
                     },
                 },
                 "required": ["cau_hoi"],
@@ -236,22 +242,27 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "dong_ho_tap_trung_pomodoro",
-            "description": "Set an asynchronous countdown timer / Pomodoro alarm with voice announcement and arm waving, check remaining time, or cancel timers.",
+            "description": "Set an asynchronous countdown timer or Pomodoro alarm with voice reminder, check status, or cancel timers.",
             "parameters": {
                 "type": "object",
+                "additionalProperties": False,
                 "properties": {
                     "thao_tac": {
                         "type": "string",
                         "enum": ["dat_hen_gio", "xem_trang_thai", "huy"],
-                        "description": "'dat_hen_gio' (start timer), 'xem_trang_thai' (check remaining time), 'huy' (cancel all timers).",
+                        "description": "'dat_hen_gio' (start timer), 'xem_trang_thai' (check remaining time), 'huy' (cancel timer).",
                     },
                     "so_phut": {
                         "type": "number",
-                        "description": "Countdown duration in minutes (e.g. 25 for Pomodoro, 0.5 for 30s).",
+                        "description": "Countdown duration in minutes (0.01 to 720 minutes).",
                     },
                     "loi_nhac": {
                         "type": "string",
                         "description": "Vietnamese reminder message spoken when the timer finishes.",
+                    },
+                    "hen_gio_id": {
+                        "type": "integer",
+                        "description": "Optional timer ID to cancel specifically.",
                     },
                 },
                 "required": ["thao_tac"],
@@ -265,15 +276,16 @@ TOOLS_SCHEMA = [
             "description": "Look up real-time weather forecasts by city or search the web for current information, news, and prices.",
             "parameters": {
                 "type": "object",
+                "additionalProperties": False,
                 "properties": {
                     "loai": {
                         "type": "string",
                         "enum": ["thoi_tiet", "tim_kiem"],
-                        "description": "'thoi_tiet' for live weather by city, 'tim_kiem' for general web search.",
+                        "description": "'thoi_tiet' for weather forecast, 'tim_kiem' for general web search.",
                     },
                     "tu_khoa": {
                         "type": "string",
-                        "description": "City name (e.g., 'Ho Chi Minh', 'Ha Noi') for weather, or search query for web search.",
+                        "description": "City name for weather or search keywords for web search.",
                     },
                 },
                 "required": ["loai", "tu_khoa"],
@@ -284,9 +296,10 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "ghi_nho_thong_tin_dai_han",
-            "description": "Save, search, list, or delete long-term personal facts, habits, preferences, or room numbers in persistent memory (teo_memory.json).",
+            "description": "Save, search, list, or delete long-term personal facts, habits, preferences, or room numbers in persistent memory.",
             "parameters": {
                 "type": "object",
+                "additionalProperties": False,
                 "properties": {
                     "thao_tac": {
                         "type": "string",
@@ -295,7 +308,7 @@ TOOLS_SCHEMA = [
                     },
                     "khoa": {
                         "type": "string",
-                        "description": "Memory topic/key or search keyword (e.g., 'phòng học AI', 'sở thích').",
+                        "description": "Memory topic/key to save, search, or delete.",
                     },
                     "noi_dung": {
                         "type": "string",
@@ -307,4 +320,3 @@ TOOLS_SCHEMA = [
         },
     },
 ]
-

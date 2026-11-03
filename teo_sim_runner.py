@@ -177,8 +177,10 @@ def main():
             step_start = time.time()
 
             try:
-                raw_bytes, _ = sock.recvfrom(1024)
+                raw_bytes, addr = sock.recvfrom(1024)
                 cmd = json.loads(raw_bytes.decode("utf-8"))
+                if cmd.get("id"):
+                    sock.sendto(json.dumps({"ack": cmd.get("id")}).encode("utf-8"), addr)
                 current_state["motion"] = cmd.get("motion", "idle")
                 current_state["bpm"] = int(cmd.get("bpm", 120))
                 duration = float(cmd.get("duration", 3.0))
