@@ -1,101 +1,169 @@
-<mujoco model="teo_lekiwi_omni">
+<mujoco model="teo_lekiwi_omni_walle">
   <option timestep="0.005" gravity="0 0 -9.81"/>
 
   <visual>
-    <headlight ambient="0.4 0.4 0.4" diffuse="0.8 0.8 0.8" specular="0.1 0.1 0.1"/>
-    <rgba haze="0.15 0.25 0.35 1"/>
+    <headlight ambient="0.45 0.45 0.45" diffuse="0.8 0.8 0.8" specular="0.2 0.2 0.2"/>
+    <rgba haze="0.15 0.20 0.28 1"/>
   </visual>
 
   <asset>
-    <texture type="skybox" builtin="gradient" rgb1="0.2 0.3 0.4" rgb2="0.05 0.08 0.12" width="512" height="512"/>
-    <texture name="grid" type="2d" builtin="checker" rgb1="0.18 0.22 0.28" rgb2="0.25 0.30 0.38" width="512" height="512"/>
-    <material name="mat_grid" texture="grid" texrepeat="8 8" reflectance="0.1"/>
-    <material name="mat_body" rgba="0.92 0.68 0.15 1"/>      <!-- Màu vàng WALL-E -->
-    <material name="mat_base" rgba="0.22 0.24 0.28 1"/>      <!-- Đế tròn 3 bánh Omni LeKiwi -->
-    <material name="mat_wheel" rgba="0.12 0.12 0.14 1"/>     <!-- Bánh xe đa hướng Omni -->
-    <material name="mat_roller" rgba="0.55 0.58 0.62 1"/>    <!-- Con lăn phụ trên vành bánh Omni -->
-    <material name="mat_screen" rgba="0.05 0.08 0.12 1"/>    <!-- Màn hình LCD ST7789 -->
-    <material name="mat_eye" rgba="0.0 0.85 1.0 1"/>         <!-- Đôi mắt LED xanh -->
-    <material name="mat_arm" rgba="0.75 0.75 0.78 1"/>       <!-- Tay kim loại -->
-    <material name="mat_ir" rgba="0.9 0.15 0.15 1"/>         <!-- 3 mắt hồng ngoại IR chống rơi bàn -->
+    <texture type="skybox" builtin="gradient" rgb1="0.25 0.35 0.48" rgb2="0.06 0.09 0.14" width="512" height="512"/>
+    <texture name="wood_tex" type="2d" builtin="flat" rgb1="0.55 0.38 0.25" width="256" height="256"/>
+    <texture name="floor_grid" type="2d" builtin="checker" rgb1="0.16 0.18 0.22" rgb2="0.22 0.25 0.30" width="512" height="512"/>
+    
+    <material name="mat_floor" texture="floor_grid" texrepeat="12 12" reflectance="0.05"/>
+    <material name="mat_desk_top" texture="wood_tex" reflectance="0.15" shininess="0.3"/>
+    <material name="mat_desk_rim" rgba="0.32 0.20 0.12 1"/>
+    <material name="mat_safety_ring" rgba="0.9 0.2 0.2 0.45"/>
+
+    <material name="mat_walle_yellow" rgba="0.93 0.66 0.14 1" specular="0.4" shininess="0.5"/>
+    <material name="mat_walle_dark" rgba="0.25 0.24 0.22 1" specular="0.2"/>
+    <material name="mat_metal_plate" rgba="0.75 0.76 0.78 1" specular="0.6" shininess="0.8"/>
+    <material name="mat_lcd_screen" rgba="0.04 0.05 0.08 1" specular="0.8" shininess="0.9"/>
+    <material name="mat_cyan_eye" rgba="0.0 0.92 1.0 1"/>
+    <material name="mat_eye_pupil" rgba="0.0 0.35 0.6 1"/>
+    <material name="mat_ttp223_copper" rgba="0.88 0.58 0.28 1" specular="0.8" shininess="0.9"/>
+    <material name="mat_pcb_blue" rgba="0.08 0.32 0.75 1"/>
+    <material name="mat_battery_green" rgba="0.18 0.68 0.26 1"/>
+    <material name="mat_servo_blue" rgba="0.1 0.45 0.85 0.85"/>
+    <material name="mat_brass" rgba="0.85 0.72 0.25 1" specular="0.7"/>
+
+    <material name="mat_omni_rim" rgba="0.12 0.13 0.15 1" specular="0.3"/>
+    <material name="mat_omni_roller" rgba="0.48 0.50 0.54 1" specular="0.2"/>
+    <material name="mat_ir_sensor" rgba="0.85 0.1 0.1 1"/>
+    <material name="mat_ir_beam" rgba="1.0 0.15 0.15 0.28"/>
   </asset>
 
   <worldbody>
-    <!-- Mặt bàn làm việc -->
-    <geom name="table_floor" type="plane" size="1 1 0.05" material="mat_grid" friction="0.02 0.001 0.0001"/>
-    <light pos="0 -0.5 1.2" dir="0 0.5 -1" directional="true"/>
+    <geom name="room_floor" type="plane" pos="0 0 -0.40" size="2 2 0.05" material="mat_floor"/>
+    <light pos="0 -0.6 1.4" dir="0 0.5 -1" directional="true"/>
+    <light pos="0 0.6 1.4" dir="0 -0.5 -1" directional="true"/>
 
-    <!-- Thân chính của Tèo: Thân trên WALL-E + Đế tròn 3 bánh Omni LeKiwi (đường kính 11cm) -->
+    <body name="desk" pos="0 0 -0.015">
+      <geom name="desk_top" type="cylinder" size="0.45 0.015" material="mat_desk_top" friction="0.02 0.001 0.0001"/>
+      <geom name="desk_rim" type="cylinder" size="0.452 0.012" material="mat_desk_rim" contype="0" conaffinity="0"/>
+      <geom name="safety_border" type="cylinder" pos="0 0 0.0151" size="0.42 0.0005" material="mat_safety_ring" contype="0" conaffinity="0"/>
+      <geom name="desk_leg" type="cylinder" pos="0 0 -0.19" size="0.06 0.19" rgba="0.2 0.2 0.22 1"/>
+      <geom name="desk_foot" type="cylinder" pos="0 0 -0.38" size="0.25 0.01" rgba="0.18 0.18 0.20 1"/>
+    </body>
+
     <body name="chassis" pos="0 0 0.068">
       <freejoint name="root"/>
 
-      <!-- Tấm đế tròn Kiwi Drive (đường kính 11cm = bán kính 0.055m) -->
-      <geom name="omni_base_plate" type="cylinder" pos="0 0 -0.032" size="0.055 0.006" material="mat_base" mass="0.15"/>
+      <geom name="omni_base_plate" type="cylinder" pos="0 0 -0.032" size="0.055 0.004" material="mat_walle_dark" mass="0.12"/>
+      <geom name="omni_base_top" type="cylinder" pos="0 0 -0.026" size="0.052 0.002" material="mat_metal_plate" mass="0.03"/>
 
-      <!-- 3 Cảm biến hồng ngoại IR chống rơi mép bàn (đặt lệch 120 độ quanh mép đế) -->
-      <geom name="ir_sensor_1" type="sphere" pos="0.052 0 -0.038" size="0.003" material="mat_ir" mass="0.001"/>
-      <geom name="ir_sensor_2" type="sphere" pos="-0.026 0.045 -0.038" size="0.003" material="mat_ir" mass="0.001"/>
-      <geom name="ir_sensor_3" type="sphere" pos="-0.026 -0.045 -0.038" size="0.003" material="mat_ir" mass="0.001"/>
+      <!-- 3 IR sensors -->
+      <body name="ir_unit_1" pos="0.052 0 -0.034">
+        <geom name="ir1_body" type="box" size="0.004 0.005 0.004" material="mat_walle_dark" mass="0.002"/>
+        <geom name="ir1_led" type="sphere" pos="0 0 -0.004" size="0.002" material="mat_ir_sensor" mass="0.001"/>
+        <geom name="ir1_beam" type="cylinder" pos="0 0 -0.018" size="0.0015 0.014" material="mat_ir_beam" contype="0" conaffinity="0"/>
+      </body>
+      <body name="ir_unit_2" pos="-0.026 0.045 -0.034">
+        <geom name="ir2_body" type="box" size="0.004 0.005 0.004" material="mat_walle_dark" mass="0.002"/>
+        <geom name="ir2_led" type="sphere" pos="0 0 -0.004" size="0.002" material="mat_ir_sensor" mass="0.001"/>
+        <geom name="ir2_beam" type="cylinder" pos="0 0 -0.018" size="0.0015 0.014" material="mat_ir_beam" contype="0" conaffinity="0"/>
+      </body>
+      <body name="ir_unit_3" pos="-0.026 -0.045 -0.034">
+        <geom name="ir3_body" type="box" size="0.004 0.005 0.004" material="mat_walle_dark" mass="0.002"/>
+        <geom name="ir3_led" type="sphere" pos="0 0 -0.004" size="0.002" material="mat_ir_sensor" mass="0.001"/>
+        <geom name="ir3_beam" type="cylinder" pos="0 0 -0.018" size="0.0015 0.014" material="mat_ir_beam" contype="0" conaffinity="0"/>
+      </body>
 
-      <!-- Đệm trượt đa hướng (Holonomic low-friction contact pads) dưới gầm đế -->
-      <geom name="omni_pad_1" type="sphere" pos="0.045 0 -0.058" size="0.01" rgba="0 0 0 0" friction="0.01 0.001 0.0001" mass="0.02"/>
-      <geom name="omni_pad_2" type="sphere" pos="-0.0225 0.039 -0.058" size="0.01" rgba="0 0 0 0" friction="0.01 0.001 0.0001" mass="0.02"/>
-      <geom name="omni_pad_3" type="sphere" pos="-0.0225 -0.039 -0.058" size="0.01" rgba="0 0 0 0" friction="0.01 0.001 0.0001" mass="0.02"/>
+      <geom name="omni_pad_1" type="sphere" pos="0.045 0 -0.058" size="0.010" rgba="0 0 0 0" friction="0.01 0.001 0.0001" mass="0.02"/>
+      <geom name="omni_pad_2" type="sphere" pos="-0.0225 0.039 -0.058" size="0.010" rgba="0 0 0 0" friction="0.01 0.001 0.0001" mass="0.02"/>
+      <geom name="omni_pad_3" type="sphere" pos="-0.0225 -0.039 -0.058" size="0.010" rgba="0 0 0 0" friction="0.01 0.001 0.0001" mass="0.02"/>
 
-      <!-- Thân hộp WALL-E phía trên -->
-      <geom name="torso_box" type="box" pos="0 0 0.01" size="0.038 0.042 0.038" material="mat_body" mass="0.30"/>
-      <geom name="chest_panel" type="box" pos="0.039 0 0.015" size="0.002 0.028 0.018" rgba="0.3 0.3 0.32 1" mass="0.01"/>
-
-      <!-- BÁNH OMNI 1: Phía trước (Góc 0 độ - Kênh 3 PCA9685, MG90S 360) -->
+      <!-- 3 Omni Wheels -->
       <body name="omni_wheel_1" pos="0.048 0 -0.044" euler="0 0 0">
         <joint name="wheel_1_joint" type="hinge" axis="1 0 0" damping="0.02"/>
-        <geom name="w1_disc" type="cylinder" size="0.024 0.006" euler="0 90 0" material="mat_wheel" contype="0" conaffinity="0" mass="0.03"/>
-        <geom name="w1_hub" type="cylinder" size="0.010 0.008" euler="0 90 0" material="mat_roller" contype="0" conaffinity="0" mass="0.005"/>
+        <geom name="w1_disc" type="cylinder" size="0.024 0.005" euler="0 90 0" material="mat_omni_rim" contype="0" conaffinity="0" mass="0.025"/>
+        <geom name="w1_hub" type="cylinder" size="0.010 0.008" euler="0 90 0" material="mat_metal_plate" contype="0" conaffinity="0" mass="0.005"/>
+        <geom name="w1_r1" type="capsule" pos="0 0 0.018" size="0.0035 0.0035" euler="0 0 0" material="mat_omni_roller" contype="0" conaffinity="0"/>
+        <geom name="w1_r2" type="capsule" pos="0 0 -0.018" size="0.0035 0.0035" euler="0 0 0" material="mat_omni_roller" contype="0" conaffinity="0"/>
+        <geom name="w1_r3" type="capsule" pos="0 0.018 0" size="0.0035 0.0035" euler="90 0 0" material="mat_omni_roller" contype="0" conaffinity="0"/>
+        <geom name="w1_r4" type="capsule" pos="0 -0.018 0" size="0.0035 0.0035" euler="90 0 0" material="mat_omni_roller" contype="0" conaffinity="0"/>
       </body>
 
-      <!-- BÁNH OMNI 2: Sau Trái (Góc 120 độ - Kênh 4 PCA9685, MG90S 360) -->
       <body name="omni_wheel_2" pos="-0.024 0.0416 -0.044" euler="0 0 120">
         <joint name="wheel_2_joint" type="hinge" axis="1 0 0" damping="0.02"/>
-        <geom name="w2_disc" type="cylinder" size="0.024 0.006" euler="0 90 0" material="mat_wheel" contype="0" conaffinity="0" mass="0.03"/>
-        <geom name="w2_hub" type="cylinder" size="0.010 0.008" euler="0 90 0" material="mat_roller" contype="0" conaffinity="0" mass="0.005"/>
+        <geom name="w2_disc" type="cylinder" size="0.024 0.005" euler="0 90 0" material="mat_omni_rim" contype="0" conaffinity="0" mass="0.025"/>
+        <geom name="w2_hub" type="cylinder" size="0.010 0.008" euler="0 90 0" material="mat_metal_plate" contype="0" conaffinity="0" mass="0.005"/>
+        <geom name="w2_r1" type="capsule" pos="0 0 0.018" size="0.0035 0.0035" euler="0 0 0" material="mat_omni_roller" contype="0" conaffinity="0"/>
+        <geom name="w2_r2" type="capsule" pos="0 0 -0.018" size="0.0035 0.0035" euler="0 0 0" material="mat_omni_roller" contype="0" conaffinity="0"/>
+        <geom name="w2_r3" type="capsule" pos="0 0.018 0" size="0.0035 0.0035" euler="90 0 0" material="mat_omni_roller" contype="0" conaffinity="0"/>
+        <geom name="w2_r4" type="capsule" pos="0 -0.018 0" size="0.0035 0.0035" euler="90 0 0" material="mat_omni_roller" contype="0" conaffinity="0"/>
       </body>
 
-      <!-- BÁNH OMNI 3: Sau Phải (Góc 240 độ - Kênh 5 PCA9685, MG90S 360) -->
       <body name="omni_wheel_3" pos="-0.024 -0.0416 -0.044" euler="0 0 240">
         <joint name="wheel_3_joint" type="hinge" axis="1 0 0" damping="0.02"/>
-        <geom name="w3_disc" type="cylinder" size="0.024 0.006" euler="0 90 0" material="mat_wheel" contype="0" conaffinity="0" mass="0.03"/>
-        <geom name="w3_hub" type="cylinder" size="0.010 0.008" euler="0 90 0" material="mat_roller" contype="0" conaffinity="0" mass="0.005"/>
+        <geom name="w3_disc" type="cylinder" size="0.024 0.005" euler="0 90 0" material="mat_omni_rim" contype="0" conaffinity="0" mass="0.025"/>
+        <geom name="w3_hub" type="cylinder" size="0.010 0.008" euler="0 90 0" material="mat_metal_plate" contype="0" conaffinity="0" mass="0.005"/>
+        <geom name="w3_r1" type="capsule" pos="0 0 0.018" size="0.0035 0.0035" euler="0 0 0" material="mat_omni_roller" contype="0" conaffinity="0"/>
+        <geom name="w3_r2" type="capsule" pos="0 0 -0.018" size="0.0035 0.0035" euler="0 0 0" material="mat_omni_roller" contype="0" conaffinity="0"/>
+        <geom name="w3_r3" type="capsule" pos="0 0.018 0" size="0.0035 0.0035" euler="90 0 0" material="mat_omni_roller" contype="0" conaffinity="0"/>
+        <geom name="w3_r4" type="capsule" pos="0 -0.018 0" size="0.0035 0.0035" euler="90 0 0" material="mat_omni_roller" contype="0" conaffinity="0"/>
       </body>
 
-      <!-- Servo 0 (Kênh 0 PCA9685): Cổ và Đầu gắn màn hình LCD hai mắt -->
-      <body name="head_neck" pos="0 0 0.055">
+      <!-- Thân hộp WALL-E -->
+      <geom name="torso_box" type="box" pos="0 0 0.01" size="0.038 0.042 0.038" material="mat_walle_yellow" mass="0.25"/>
+      <geom name="chest_panel" type="box" pos="0.039 0 0.012" size="0.002 0.028 0.018" material="mat_walle_dark" mass="0.01"/>
+      <geom name="chest_meter" type="box" pos="0.040 0.012 0.012" size="0.0015 0.010 0.006" rgba="0.95 0.75 0.1 1" mass="0.001"/>
+      <geom name="chest_led" type="sphere" pos="0.040 -0.015 0.012" size="0.003" rgba="0.1 0.9 0.2 1" mass="0.001"/>
+
+      <!-- Chi tiết mạch và pin -->
+      <geom name="battery_cell_1" type="cylinder" pos="-0.015 0.018 0.005" size="0.009 0.030" material="mat_battery_green" mass="0.045"/>
+      <geom name="battery_cell_2" type="cylinder" pos="-0.015 -0.018 0.005" size="0.009 0.030" material="mat_battery_green" mass="0.045"/>
+      <geom name="pca9685_board" type="box" pos="0.010 0 0.002" size="0.020 0.014 0.002" material="mat_pcb_blue" mass="0.01"/>
+      <geom name="buck_mini560_logic" type="box" pos="0.015 0.022 -0.015" size="0.008 0.010 0.003" rgba="0.15 0.45 0.2 1" mass="0.005"/>
+      <geom name="buck_mini560_servo" type="box" pos="0.015 -0.022 -0.015" size="0.008 0.010 0.003" rgba="0.15 0.45 0.2 1" mass="0.005"/>
+
+      <!-- Cổ và Đầu LCD ST7789 -->
+      <body name="head_neck" pos="0 0 0.052">
         <joint name="neck_yaw" type="hinge" axis="0 0 1" range="-70 70" damping="0.1"/>
-        <geom name="neck_post" type="cylinder" size="0.01 0.015" rgba="0.5 0.5 0.5 1" mass="0.02"/>
-        <geom name="head_box" type="box" pos="0.005 0 0.025" size="0.022 0.036 0.02" material="mat_body" mass="0.05"/>
-        <geom name="lcd_screen" type="box" pos="0.028 0 0.025" size="0.002 0.03 0.015" material="mat_screen" mass="0.005"/>
-        <geom name="eye_left" type="cylinder" pos="0.031 0.014 0.025" size="0.008 0.001" euler="0 90 0" material="mat_eye" mass="0.001"/>
-        <geom name="eye_right" type="cylinder" pos="0.031 -0.014 0.025" size="0.008 0.001" euler="0 90 0" material="mat_eye" mass="0.001"/>
+        <geom name="neck_servo_body" type="box" pos="0 0 -0.006" size="0.011 0.011 0.008" material="mat_servo_blue" mass="0.015"/>
+        <geom name="neck_post" type="cylinder" pos="0 0 0.008" size="0.008 0.010" material="mat_metal_plate" mass="0.01"/>
+
+        <geom name="head_box" type="box" pos="0.006 0 0.026" size="0.022 0.038 0.020" material="mat_walle_yellow" mass="0.04"/>
+        <geom name="head_bezel" type="box" pos="0.0285 0 0.026" size="0.001 0.034 0.018" material="mat_walle_dark" mass="0.005"/>
+
+        <geom name="lcd_screen" type="box" pos="0.0298 0 0.026" size="0.0008 0.030 0.015" material="mat_lcd_screen" mass="0.005"/>
+        <geom name="eye_left" type="cylinder" pos="0.0308 0.014 0.026" size="0.0085 0.0006" euler="0 90 0" material="mat_cyan_eye" mass="0.001"/>
+        <geom name="eye_left_pupil" type="cylinder" pos="0.0315 0.014 0.026" size="0.0045 0.0003" euler="0 90 0" material="mat_eye_pupil" mass="0.001"/>
+        <geom name="eye_right" type="cylinder" pos="0.0308 -0.014 0.026" size="0.0085 0.0006" euler="0 90 0" material="mat_cyan_eye" mass="0.001"/>
+        <geom name="eye_right_pupil" type="cylinder" pos="0.0315 -0.014 0.026" size="0.0045 0.0003" euler="0 90 0" material="mat_eye_pupil" mass="0.001"/>
+
+        <geom name="ttp223_touch_pad" type="cylinder" pos="0.005 0 0.0465" size="0.010 0.001" material="mat_ttp223_copper" mass="0.002"/>
+        <geom name="mic_port" type="cylinder" pos="0.020 0 0.0465" size="0.002 0.001" rgba="0.1 0.1 0.1 1"/>
+        <geom name="speaker_grill" type="box" pos="-0.0165 0 0.026" size="0.001 0.022 0.012" rgba="0.15 0.15 0.18 1"/>
       </body>
 
-      <!-- Servo 1 (Kênh 1 PCA9685): Cánh tay Trái -->
+      <!-- Tay Trái -->
       <body name="left_arm" pos="0.01 0.050 0.018">
         <joint name="left_arm_pitch" type="hinge" axis="0 1 0" range="-90 90" damping="0.08"/>
-        <geom name="l_arm_geom" type="box" pos="0.025 0 0" size="0.028 0.006 0.008" material="mat_arm" mass="0.02"/>
+        <geom name="l_servo_body" type="box" pos="0 -0.005 0" size="0.011 0.006 0.011" material="mat_servo_blue" mass="0.01"/>
+        <geom name="l_arm_boom" type="box" pos="0.022 0.004 0" size="0.022 0.004 0.007" material="mat_metal_plate" mass="0.015"/>
+        <geom name="l_hand_base" type="box" pos="0.046 0.004 0" size="0.004 0.006 0.006" material="mat_walle_dark" mass="0.005"/>
+        <geom name="l_claw_upper" type="box" pos="0.054 0.004 0.004" size="0.006 0.003 0.002" material="mat_metal_plate" mass="0.002"/>
+        <geom name="l_claw_lower" type="box" pos="0.054 0.004 -0.004" size="0.006 0.003 0.002" material="mat_metal_plate" mass="0.002"/>
       </body>
 
-      <!-- Servo 2 (Kênh 2 PCA9685): Cánh tay Phải -->
+      <!-- Tay Phải -->
       <body name="right_arm" pos="0.01 -0.050 0.018">
         <joint name="right_arm_pitch" type="hinge" axis="0 1 0" range="-90 90" damping="0.08"/>
-        <geom name="r_arm_geom" type="box" pos="0.025 0 0" size="0.028 0.006 0.008" material="mat_arm" mass="0.02"/>
+        <geom name="r_servo_body" type="box" pos="0 0.005 0" size="0.011 0.006 0.011" material="mat_servo_blue" mass="0.01"/>
+        <geom name="r_arm_boom" type="box" pos="0.022 -0.004 0" size="0.022 0.004 0.007" material="mat_metal_plate" mass="0.015"/>
+        <geom name="r_hand_base" type="box" pos="0.046 -0.004 0" size="0.004 0.006 0.006" material="mat_walle_dark" mass="0.005"/>
+        <geom name="r_claw_upper" type="box" pos="0.054 -0.004 0.004" size="0.006 0.003 0.002" material="mat_metal_plate" mass="0.002"/>
+        <geom name="r_claw_lower" type="box" pos="0.054 -0.004 -0.004" size="0.006 0.003 0.002" material="mat_metal_plate" mass="0.002"/>
       </body>
     </body>
   </worldbody>
 
-  <!-- Bộ truyền động: 6 Kênh PWM trên module I2C PCA9685 (3 Servo MG90S 180° + 3 Servo MG90S 360° Omni) -->
   <actuator>
-    <position name="servo_neck" joint="neck_yaw" kp="2.5" ctrlrange="-1.2 1.2"/>
-    <position name="servo_left_arm" joint="left_arm_pitch" kp="2.0" ctrlrange="-1.5 1.5"/>
-    <position name="servo_right_arm" joint="right_arm_pitch" kp="2.0" ctrlrange="-1.5 1.5"/>
+    <position name="servo_neck" joint="neck_yaw" kp="2.5" ctrlrange="-1.22 1.22"/>
+    <position name="servo_left_arm" joint="left_arm_pitch" kp="2.0" ctrlrange="-1.57 1.57"/>
+    <position name="servo_right_arm" joint="right_arm_pitch" kp="2.0" ctrlrange="-1.57 1.57"/>
     <velocity name="servo_omni_w1" joint="wheel_1_joint" kv="0.5" ctrlrange="-15 15"/>
     <velocity name="servo_omni_w2" joint="wheel_2_joint" kv="0.5" ctrlrange="-15 15"/>
     <velocity name="servo_omni_w3" joint="wheel_3_joint" kv="0.5" ctrlrange="-15 15"/>

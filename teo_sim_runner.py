@@ -8,11 +8,11 @@ import mujoco.viewer
 
 from tools.guardrails import sign_wifi_packet, verify_wifi_packet
 
-# Mở socket UDP không chặn (non-blocking) để nhận lệnh từ Tools / FastMCP
+# Cổng UDP lắng nghe lệnh điều khiển từ Tools (Python / LLM)
 UDP_IP = "127.0.0.1"
 UDP_PORT = 5555
 
-# Bán kính đế tròn 3 bánh Omni LeKiwi (m) và giới hạn an toàn mặt bàn (3 cảm biến IR)
+# Bán kính đế tròn 3 bánh Omni Kiwi Drive (55mm = 0.055m)
 BASE_RADIUS = 0.055
 WHEEL_SCALE = 35.0
 SAFE_TABLE_RADIUS = 0.42
@@ -21,19 +21,21 @@ current_state = {
     "motion": "idle",
     "bpm": 120,
     "end_time": 0.0,
+    "last_cliff_alert": 0.0,
 }
 
 
 def compute_lekiwi_wheel_speeds(vx: float, vy: float, omega_rot: float) -> tuple[float, float, float]:
     """
     Công thức động học ngược 3 bánh xe đa hướng (3-Wheel Omni Kiwi Drive - LeKiwi):
-      w1 = vx + R * omega
-      w2 = -0.5 * vx + (sqrt(3)/2) * vy + R * omega
-      w3 = -0.5 * vx - (sqrt(3)/2) * vy + R * omega
+      w1 = vx + R * omega_rot
+      w2 = -0.5 * vx + (sqrt(3)/2) * vy + R * omega_rot
+      w3 = -0.5 * vx - (sqrt(3)/2) * vy + R * omega_rot
     Trong đó:
       - vx: vận tốc trượt ngang phải (+) / trái (-) (m/s)
       - vy: vận tốc tiến (+) / lùi (-) (m/s)
-      - omega_rot: vận tốc góc tự xoay quanh tâm (rad/s)
+      - omega_rot: vận tốc góc tự xoay quanh trục thẳng đứng (rad/s)
+      - R: bán kính tâm đế tới bánh xe (0.055m)
     """
     sqrt3_half = math.sqrt(3.0) / 2.0
     r_omega = BASE_RADIUS * omega_rot
@@ -45,7 +47,7 @@ def compute_lekiwi_wheel_speeds(vx: float, vy: float, omega_rot: float) -> tuple
 
 def apply_motion_bundle(data, t: float, state: dict):
     """
-    Giải mã tên gói Motion Bundle & Kiwi Drive thành xung điều khiển mượt cho:
+    Giải mã tên gói Motion Bundle & Kiwi Drive thành xung điều khiển cho:
     - Kênh 0..2 PCA9685: 3 Servo thân trên MG90S 180° (Cổ, Tay trái, Tay phải)
     - Kênh 3..5 PCA9685: 3 Servo bánh xe Omni MG90S 360° (w1, w2, w3)
     """
@@ -62,44 +64,44 @@ def apply_motion_bundle(data, t: float, state: dict):
         motion = "idle"
 
     if motion == "idle":
-        # Thở nhẹ tự nhiên
+        # Thở nhẹ tự nhiên, hai tay đung đưa nhẹ
         l_arm = 0.08 * math.sin(2.0 * t)
         r_arm = 0.08 * math.sin(2.0 * t)
 
     elif motion == "wave_greeting":
-        # Nghiêng cổ nhẹ + vẫy tay phải chào
+        # Nghiêng cổ chào + vẫy mạnh tay phải
         neck = 0.35 * math.sin(4.0 * t)
         r_arm = -0.9 + 0.45 * math.sin(10.0 * t)
         l_arm = 0.2
 
     elif motion == "nod_yes":
-        # Gật đầu / vẫy nhẹ 2 tay đồng ý
+        # Gật đầu đồng ý + vẫy nhẹ 2 tay
         l_arm = -0.4 + 0.3 * math.sin(8.0 * t)
         r_arm = -0.4 + 0.3 * math.sin(8.0 * t)
         vy = 0.04 * math.sin(8.0 * t)
 
     elif motion == "shake_no":
-        # Lắc cổ từ chối
+        # Lắc cổ từ chối dứt khoát
         neck = 0.7 * math.sin(10.0 * t)
 
     elif motion == "look_around":
-        # Xoay cổ tìm chủ nhân
+        # Xoay cổ quan sát xung quanh tìm sếp
         neck = 0.85 * math.sin(2.5 * t)
         l_arm = -0.15 * math.cos(2.5 * t)
         r_arm = 0.15 * math.cos(2.5 * t)
 
     elif motion == "happy_dance":
-        # Nhảy múa tại chỗ theo nhịp BPM
+        # Vũ đạo vui vẻ tại chỗ theo nhịp điệu BPM
         neck = 0.45 * math.sin(beat_omega * t)
         l_arm = -0.5 + 0.6 * math.sin(beat_omega * t)
         r_arm = -0.5 - 0.6 * math.sin(beat_omega * t)
         omega_rot = 1.8 * math.sin(beat_omega * t)
 
     elif motion == "moonwalk_dance":
-        # Vũ đạo Moonwalk trượt ngang đa hướng kết hợp vẫy 2 tay theo nhịp BPM, mắt vẫn nhìn thẳng
+        # Vũ đạo Moonwalk: trượt ngang đa hướng + vẫy 2 tay, mắt vẫn nhìn thẳng
         vx = 0.14 * math.sin(0.5 * beat_omega * t)
         vy = 0.05 * math.cos(beat_omega * t)
-        neck = -0.25 * math.sin(0.5 * beat_omega * t)  # Giữ ánh mắt khóa về phía chủ nhân khi trượt
+        neck = -0.25 * math.sin(0.5 * beat_omega * t)  # Khóa ánh mắt về chủ nhân
         l_arm = -0.55 + 0.55 * math.sin(beat_omega * t)
         r_arm = -0.55 + 0.55 * math.cos(beat_omega * t)
 
@@ -111,17 +113,17 @@ def apply_motion_bundle(data, t: float, state: dict):
         vy = -0.12
 
     elif motion == "slide_left":
-        # Trượt ngang sang trái giữ nguyên ánh mắt nhìn thẳng
+        # Trượt ngang sang trái trên đế Omni, mặt vẫn nhìn thẳng
         vx = -0.14
         l_arm, r_arm = -0.2, 0.1
 
     elif motion == "slide_right":
-        # Trượt ngang sang phải giữ nguyên ánh mắt nhìn thẳng
+        # Trượt ngang sang phải trên đế Omni, mặt vẫn nhìn thẳng
         vx = 0.14
         l_arm, r_arm = 0.1, -0.2
 
     elif motion == "circle_strafe":
-        # Lượn vòng cung quanh mặt bàn trong khi mặt vẫn khóa hướng về phía người ngồi
+        # Lượn vòng cung quanh mặt bàn trong khi mặt vẫn khóa hướng vào sếp
         vx = 0.14 * math.cos(1.2 * t)
         vy = 0.06 * math.sin(1.2 * t)
         neck = -0.3 * math.cos(1.2 * t)
@@ -143,23 +145,93 @@ def apply_motion_bundle(data, t: float, state: dict):
     data.ctrl[4] = w2
     data.ctrl[5] = w3
 
-    # Cập nhật vận tốc phẳng Holonomic (Kiwi Drive) trong hệ tọa độ mặt bàn + bảo vệ 3 cảm biến IR chống rơi
+    # Cập nhật vận tốc phẳng Holonomic và cơ chế 3 cảm biến IR chống rơi mép bàn
     if vx != 0.0 or vy != 0.0 or omega_rot != 0.0:
-        # Lấy góc hướng hiện tại (yaw) từ quaternion của freejoint root (qpos[3..6] = w, x, y, z)
         qw, qx, qy, qz = data.qpos[3], data.qpos[4], data.qpos[5], data.qpos[6]
         yaw = math.atan2(2.0 * (qw * qz + qx * qy), 1.0 - 2.0 * (qy * qy + qz * qz))
-        # Trong mô hình: trục +X của thân hướng về phía trước (vy), trục -Y hướng sang phải (vx)
         world_vx = vy * math.cos(yaw) + vx * math.sin(yaw)
         world_vy = vy * math.sin(yaw) - vx * math.cos(yaw)
 
-        # Kiểm tra 3 mắt hồng ngoại IR chống rơi mép bàn
+        # 3 Cảm biến IR hướng xuống gầm: kiểm tra khoảng cách tâm bàn
         px, py = data.qpos[0], data.qpos[1]
-        if math.hypot(px + world_vx * 0.05, py + world_vy * 0.05) > SAFE_TABLE_RADIUS:
-            world_vx, world_vy = -px * 0.5, -py * 0.5
+        dist_to_center = math.hypot(px + world_vx * 0.05, py + world_vy * 0.05)
+        if dist_to_center > SAFE_TABLE_RADIUS:
+            now = time.time()
+            if now - state.get("last_cliff_alert", 0.0) > 1.0:
+                print(
+                    f"⚠️ [IR CLIFF ALERT]: Phát hiện mép bàn tại r={dist_to_center:.3f}m > {SAFE_TABLE_RADIUS}m! "
+                    "Kích hoạt phanh khẩn cấp & lùi an toàn!"
+                )
+                state["last_cliff_alert"] = now
+            # Phanh tức thì và đẩy nhẹ ngược về phía tâm bàn
+            world_vx = -px * 0.6
+            world_vy = -py * 0.6
 
         data.qvel[0] = world_vx
         data.qvel[1] = world_vy
         data.qvel[5] = omega_rot
+
+
+def make_key_callback(state: dict):
+    """Bắt phím bấm trực tiếp từ cửa sổ giao diện 3D MuJoCo để test chuyển động tức thì."""
+    def key_callback(keycode: int):
+        # Số 1..6: Các cử chỉ thân trên & vũ đạo
+        if keycode == ord("1"):
+            state["motion"] = "wave_greeting"
+            state["end_time"] = time.time() + 3.0
+            print("👉 [PHÍM 1]: Cử chỉ vẫy tay chào sếp (wave_greeting)")
+        elif keycode == ord("2"):
+            state["motion"] = "nod_yes"
+            state["end_time"] = time.time() + 2.5
+            print("👉 [PHÍM 2]: Gật đầu đồng ý (nod_yes)")
+        elif keycode == ord("3"):
+            state["motion"] = "shake_no"
+            state["end_time"] = time.time() + 2.5
+            print("👉 [PHÍM 3]: Lắc đầu từ chối (shake_no)")
+        elif keycode == ord("4"):
+            state["motion"] = "happy_dance"
+            state["bpm"] = 128
+            state["end_time"] = time.time() + 3.0
+            print("👉 [PHÍM 4]: Nhảy múa vui vẻ theo nhịp BPM 128 (happy_dance)")
+        elif keycode == ord("5"):
+            state["motion"] = "moonwalk_dance"
+            state["bpm"] = 120
+            state["end_time"] = time.time() + 3.5
+            print("👉 [PHÍM 5]: Vũ đạo Moonwalk trượt đa hướng (moonwalk_dance)")
+        elif keycode == ord("6"):
+            state["motion"] = "look_around"
+            state["end_time"] = time.time() + 3.0
+            print("👉 [PHÍM 6]: Xoay cổ nhìn quanh tìm sếp (look_around)")
+        # Phím di chuyển Omni Kiwi Drive: W, S, A, D, C, R, Space
+        elif keycode in (ord("W"), ord("w"), 265):
+            state["motion"] = "move_forward"
+            state["end_time"] = time.time() + 2.0
+            print("👉 [PHÍM W / UP]: Đế Omni tiến lên phía trước (move_forward)")
+        elif keycode in (ord("S"), ord("s"), 264):
+            state["motion"] = "move_backward"
+            state["end_time"] = time.time() + 2.0
+            print("👉 [PHÍM S / DOWN]: Đế Omni lùi lại phía sau (move_backward)")
+        elif keycode in (ord("A"), ord("a"), 263):
+            state["motion"] = "slide_left"
+            state["end_time"] = time.time() + 2.0
+            print("👉 [PHÍM A / LEFT]: Trượt ngang sang trái giữ ánh mắt (slide_left)")
+        elif keycode in (ord("D"), ord("d"), 262):
+            state["motion"] = "slide_right"
+            state["end_time"] = time.time() + 2.0
+            print("👉 [PHÍM D / RIGHT]: Trượt ngang sang phải giữ ánh mắt (slide_right)")
+        elif keycode in (ord("C"), ord("c")):
+            state["motion"] = "circle_strafe"
+            state["end_time"] = time.time() + 3.0
+            print("👉 [PHÍM C]: Lượn vòng cung quanh bàn giữ mắt khóa vào sếp (circle_strafe)")
+        elif keycode in (ord("R"), ord("r")):
+            state["motion"] = "spin_around"
+            state["end_time"] = time.time() + 2.5
+            print("👉 [PHÍM R]: Tự xoay tròn 360 độ tại chỗ (spin_around)")
+        elif keycode == 32:  # Space bar
+            state["motion"] = "idle"
+            state["end_time"] = 0.0
+            print("🛑 [SPACE]: Dừng khẩn cấp / Đứng yên (idle)")
+    return key_callback
 
 
 def main():
@@ -172,8 +244,19 @@ def main():
     model = mujoco.MjModel.from_xml_path(xml_path)
     data = mujoco.MjData(model)
 
-    print(f"[Tèo 3D Sim - Đế 3 bánh Omni LeKiwi] Đang lắng nghe lệnh UDP tại {UDP_IP}:{UDP_PORT}...")
-    with mujoco.viewer.launch_passive(model, data) as viewer:
+    print("=" * 70)
+    print("🤖 [TÈO 3D SIMULATION - PHẦN CỨNG WALL-E & ĐẾ 3 BÁNH OMNI LEKIWI]")
+    print(f"📡 Đang lắng nghe lệnh UDP HMAC-SHA256 tại {UDP_IP}:{UDP_PORT}")
+    print("⌨️  HỖ TRỢ ĐIỀU KHIỂN PHÍM TẮT TRỰC TIẾP TRONG CỬA SỔ 3D:")
+    print("   [1] Vẫy tay chào     [2] Gật đầu      [3] Lắc đầu      [4] Nhảy vui vẻ")
+    print("   [5] Vũ đạo Moonwalk  [6] Nhìn quanh")
+    print("   [W/S] Tiến / Lùi     [A/D] Trượt ngang Trái / Phải (Mắt nhìn thẳng)")
+    print("   [C] Lượn vòng cung   [R] Xoay 360 độ   [SPACE] Dừng khẩn cấp")
+    print("=" * 70)
+
+    key_cb = make_key_callback(current_state)
+
+    with mujoco.viewer.launch_passive(model, data, key_callback=key_cb) as viewer:
         start_t = time.time()
         while viewer.is_running():
             step_start = time.time()
@@ -184,14 +267,14 @@ def main():
                 if not isinstance(cmd, dict):
                     raise ValueError("UDP payload must be a JSON object")
 
-                # Verify Wi-Fi / UDP HMAC-SHA256 signature, timestamp, anti-replay, and role permission
+                # Xác thực bảo mật gói tin Wi-Fi qua HMAC-SHA256 & chống replay
                 ok_auth, reason = verify_wifi_packet(
                     cmd,
                     expected_role="laptop_controller",
                     required_permission="motion_cmd",
                 )
                 if not ok_auth:
-                    print(f"[Sim Security Blocked]: Từ chối gói UDP không hợp lệ ({reason})")
+                    print(f"🚫 [Sim Security Blocked]: Từ chối gói UDP không hợp lệ ({reason})")
                     continue
 
                 if cmd.get("id"):
@@ -200,6 +283,7 @@ def main():
                         sock.sendto(json.dumps(ack_pkt).encode("utf-8"), addr)
                     except OSError:
                         pass
+
                 motion = str(cmd.get("motion", "idle"))
                 bpm = max(60, min(160, int(cmd.get("bpm", 120))))
                 duration = float(cmd.get("duration", 3.0))
@@ -210,7 +294,7 @@ def main():
                 current_state["bpm"] = bpm
                 current_state["end_time"] = time.time() + duration
                 print(
-                    f"-> Thực thi Motion/Omni: {current_state['motion']} "
+                    f"⚡ [UDP Motion Nhận Thành Công]: {current_state['motion']} "
                     f"(BPM={current_state['bpm']}, {duration}s)"
                 )
             except BlockingIOError:
