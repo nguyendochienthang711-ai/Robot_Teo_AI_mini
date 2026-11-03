@@ -27,6 +27,10 @@ env/
 *.mp3
 *.wav
 teo_todo.json
+teo_memory.json
+teo_bookmarks.json
+screenshots/
+.teo_music_profile/
 
 # Local AI Models (Piper ONNX weights)
 models/

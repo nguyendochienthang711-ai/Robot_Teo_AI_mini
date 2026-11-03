@@ -46,9 +46,22 @@ def apply_motion_bundle(data, t: float, state: dict):
         r_arm = -0.9 + 0.45 * math.sin(10.0 * t)
         l_arm = 0.2
 
+    elif motion == "nod_yes":
+        # Gật đầu/vẫy nhẹ hai tay đồng ý
+        l_arm = -0.4 + 0.3 * math.sin(8.0 * t)
+        r_arm = -0.4 + 0.3 * math.sin(8.0 * t)
+        l_wheel = 1.2 * math.sin(8.0 * t)
+        r_wheel = 1.2 * math.sin(8.0 * t)
+
     elif motion == "shake_no":
         # Lắc đầu từ chối
         neck = 0.7 * math.sin(10.0 * t)
+
+    elif motion == "look_around":
+        # Nhìn quanh tìm chủ nhân
+        neck = 0.85 * math.sin(2.5 * t)
+        l_arm = -0.15 * math.cos(2.5 * t)
+        r_arm = 0.15 * math.cos(2.5 * t)
 
     elif motion == "happy_dance":
         # Nhảy theo nhịp nhạc (BPM): xoay cổ, vẫy 2 tay ngược pha và lắc nhẹ đế bánh xích
