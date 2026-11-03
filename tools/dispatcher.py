@@ -13,7 +13,11 @@ from typing import Any
 
 from jsonschema import Draft202012Validator
 
-from tools.guardrails import describe_hitl_action, set_pending_action
+from tools.guardrails import (
+    check_tool_args_guardrail,
+    describe_hitl_action,
+    set_pending_action,
+)
 from tools.policy import (
     MAX_CALLS_PER_TURN,
     TOOL_SPECS,
@@ -103,6 +107,11 @@ def run_tool(func_name: str, args_json: str, ctx: TurnContext | None = None) -> 
             field_path = "/".join(map(str, e.path)) or "root"
             log.warning("Schema validation error in %s at %s: %s", func_name, field_path, e.message)
             return _fail(func_name, args, ctx, f"ERROR invalid_arguments: {field_path}: {e.message}")
+
+    # Rule & Regex Tool-Arguments Guardrail (blocks shell payloads in clipboard & memory poisoning)
+    args_ok, args_reason = check_tool_args_guardrail(func_name, args)
+    if not args_ok:
+        return _fail(func_name, args, ctx, args_reason)
 
     # Policy: block side-effect tools after untrusted data in the same turn (TL-04)
     risk = risk_of(func_name, args)
