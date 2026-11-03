@@ -1,5 +1,5 @@
 <mujoco model="teo_lekiwi_omni_walle">
-  <option timestep="0.005" gravity="0 0 -9.81"/>
+  <option timestep="0.005" gravity="0 0 -9.81" integrator="implicitfast"/>
 
   <visual>
     <headlight ambient="0.45 0.45 0.45" diffuse="0.8 0.8 0.8" specular="0.2 0.2 0.2"/>
@@ -76,7 +76,7 @@
 
       <!-- 3 Omni Wheels -->
       <body name="omni_wheel_1" pos="0.048 0 -0.044" euler="0 0 0">
-        <joint name="wheel_1_joint" type="hinge" axis="1 0 0" damping="0.02"/>
+        <joint name="wheel_1_joint" type="hinge" axis="1 0 0" damping="0.005"/>
         <geom name="w1_disc" type="cylinder" size="0.024 0.005" euler="0 90 0" material="mat_omni_rim" contype="0" conaffinity="0" mass="0.025"/>
         <geom name="w1_hub" type="cylinder" size="0.010 0.008" euler="0 90 0" material="mat_metal_plate" contype="0" conaffinity="0" mass="0.005"/>
         <geom name="w1_r1" type="capsule" pos="0 0 0.018" size="0.0035 0.0035" euler="0 0 0" material="mat_omni_roller" contype="0" conaffinity="0"/>
@@ -86,7 +86,7 @@
       </body>
 
       <body name="omni_wheel_2" pos="-0.024 0.0416 -0.044" euler="0 0 120">
-        <joint name="wheel_2_joint" type="hinge" axis="1 0 0" damping="0.02"/>
+        <joint name="wheel_2_joint" type="hinge" axis="1 0 0" damping="0.005"/>
         <geom name="w2_disc" type="cylinder" size="0.024 0.005" euler="0 90 0" material="mat_omni_rim" contype="0" conaffinity="0" mass="0.025"/>
         <geom name="w2_hub" type="cylinder" size="0.010 0.008" euler="0 90 0" material="mat_metal_plate" contype="0" conaffinity="0" mass="0.005"/>
         <geom name="w2_r1" type="capsule" pos="0 0 0.018" size="0.0035 0.0035" euler="0 0 0" material="mat_omni_roller" contype="0" conaffinity="0"/>
@@ -96,7 +96,7 @@
       </body>
 
       <body name="omni_wheel_3" pos="-0.024 -0.0416 -0.044" euler="0 0 240">
-        <joint name="wheel_3_joint" type="hinge" axis="1 0 0" damping="0.02"/>
+        <joint name="wheel_3_joint" type="hinge" axis="1 0 0" damping="0.005"/>
         <geom name="w3_disc" type="cylinder" size="0.024 0.005" euler="0 90 0" material="mat_omni_rim" contype="0" conaffinity="0" mass="0.025"/>
         <geom name="w3_hub" type="cylinder" size="0.010 0.008" euler="0 90 0" material="mat_metal_plate" contype="0" conaffinity="0" mass="0.005"/>
         <geom name="w3_r1" type="capsule" pos="0 0 0.018" size="0.0035 0.0035" euler="0 0 0" material="mat_omni_roller" contype="0" conaffinity="0"/>
@@ -164,8 +164,8 @@
     <position name="servo_neck" joint="neck_yaw" kp="2.5" ctrlrange="-1.22 1.22"/>
     <position name="servo_left_arm" joint="left_arm_pitch" kp="2.0" ctrlrange="-1.57 1.57"/>
     <position name="servo_right_arm" joint="right_arm_pitch" kp="2.0" ctrlrange="-1.57 1.57"/>
-    <velocity name="servo_omni_w1" joint="wheel_1_joint" kv="0.5" ctrlrange="-15 15"/>
-    <velocity name="servo_omni_w2" joint="wheel_2_joint" kv="0.5" ctrlrange="-15 15"/>
-    <velocity name="servo_omni_w3" joint="wheel_3_joint" kv="0.5" ctrlrange="-15 15"/>
+    <velocity name="servo_omni_w1" joint="wheel_1_joint" kv="0.05" ctrlrange="-15 15"/>
+    <velocity name="servo_omni_w2" joint="wheel_2_joint" kv="0.05" ctrlrange="-15 15"/>
+    <velocity name="servo_omni_w3" joint="wheel_3_joint" kv="0.05" ctrlrange="-15 15"/>
   </actuator>
 </mujoco>

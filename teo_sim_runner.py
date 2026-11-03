@@ -67,6 +67,10 @@ def apply_motion_bundle(data, t: float, state: dict):
         # Thở nhẹ tự nhiên, hai tay đung đưa nhẹ
         l_arm = 0.08 * math.sin(2.0 * t)
         r_arm = 0.08 * math.sin(2.0 * t)
+        # Giữ robot đứng yên chắc chắn trên mặt bàn khi nhàn rỗi
+        data.qvel[0] = 0.0
+        data.qvel[1] = 0.0
+        data.qvel[5] = 0.0
 
     elif motion == "wave_greeting":
         # Nghiêng cổ chào + vẫy mạnh tay phải
