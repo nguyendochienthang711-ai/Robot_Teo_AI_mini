@@ -1,6 +1,9 @@
 """
 Dispatcher: Maps tool function names to implementation handlers and executes tool calls.
 Enforces strict fail-closed validation, lazy loading, and security policies (TL-02, TL-04, TL-14, TL-15).
+
+- run_tool(...)          -> ToolResult  (used by brain.py: honours speak/commit for direct TTS)
+- execute_tool_call(...) -> str         (used by tests / MCP: commits immediately, returns text only)
 """
 
 import importlib
@@ -16,6 +19,7 @@ from tools.policy import (
     ToolResult,
     TurnContext,
     audit_log,
+    risk_of,
 )
 from tools.schemas import TOOLS_SCHEMA
 
@@ -63,24 +67,31 @@ def _get_handler(name: str):
     return getattr(mod, fn_name)
 
 
-def execute_tool_call(func_name: str, args_json: str, ctx: TurnContext | None = None) -> str:
-    """Execute tool call with strict fail-closed validation, policy guardrails, and audit logging."""
+def _fail(func_name: str, args: dict, ctx: TurnContext, text: str) -> ToolResult:
+    audit_log(func_name, args, False, ctx.tainted, 0)
+    return ToolResult(text=text, ok=False)
+
+
+def run_tool(func_name: str, args_json: str, ctx: TurnContext | None = None) -> ToolResult:
+    """Validate, apply policy, execute and audit a tool call. Returns a ToolResult."""
     if ctx is None:
         ctx = TurnContext()
 
     # Rate limiting per turn (TL-04)
     ctx.calls += 1
     if ctx.calls > MAX_CALLS_PER_TURN:
-        audit_log(func_name, {}, False, ctx.tainted, 0)
-        return "ERROR rate_limit: maximum tool calls per turn exceeded."
+        return _fail(func_name, {}, ctx, "ERROR rate_limit: maximum tool calls per turn exceeded.")
 
     # Parse and reject invalid JSON / constants (TL-02)
     try:
         args = _parse_args(args_json)
     except ValueError as err:
         log.warning("JSON parse failure in %s: %s", func_name, err)
-        audit_log(func_name, {}, False, ctx.tainted, 0)
-        return "ERROR invalid_arguments: arguments were not valid JSON. Ask the user or retry once."
+        return _fail(func_name, {}, ctx,
+                     "ERROR invalid_arguments: arguments were not valid JSON. Ask the user or retry once.")
+
+    if func_name not in _REGISTRY:
+        return _fail(func_name, args, ctx, f"ERROR unknown_tool: {func_name} does not exist.")
 
     # Validate against JSON schema (TL-02, TL-16)
     validator = _VALIDATORS.get(func_name)
@@ -90,40 +101,45 @@ def execute_tool_call(func_name: str, args_json: str, ctx: TurnContext | None = 
             e = errors[0]
             field_path = "/".join(map(str, e.path)) or "root"
             log.warning("Schema validation error in %s at %s: %s", func_name, field_path, e.message)
-            audit_log(func_name, args, False, ctx.tainted, 0)
-            return f"ERROR invalid_arguments: {field_path}: {e.message}"
+            return _fail(func_name, args, ctx, f"ERROR invalid_arguments: {field_path}: {e.message}")
 
-    # Policy layer check for untrusted data / tainted turn (TL-04)
+    # Policy: block side-effect tools after untrusted data in the same turn (TL-04)
+    risk = risk_of(func_name, args)
+    if ctx.tainted and risk in ("write", "destructive", "physical") and not ctx.confirmed:
+        log.warning("Blocked %s (%s) in tainted turn without confirmation", func_name, risk)
+        return _fail(func_name, args, ctx,
+                     "ERROR security_policy: untrusted data was read in this turn. "
+                     "Ask the user to confirm physically before this action.")
+
     spec = TOOL_SPECS.get(func_name)
-    if ctx.tainted and spec and spec.risk in ("write", "destructive", "physical") and not ctx.confirmed:
-        log.warning("Blocked action %s due to tainted context without confirmation", func_name)
-        audit_log(func_name, args, False, ctx.tainted, 0)
-        return "ERROR security_policy: untrusted data detected in this turn. Physical confirmation is required before executing this action."
-
     try:
-        handler = _get_handler(func_name)
-        if not handler:
-            audit_log(func_name, args, False, ctx.tainted, 0)
-            return f"ERROR unknown_tool: {func_name} does not exist."
-
-        raw_result = handler(args)
-
-        if isinstance(raw_result, ToolResult):
-            if raw_result.tainted or (spec and spec.untrusted_output):
-                ctx.tainted = True
-            output_text = raw_result.text
-            ok = raw_result.ok
-        else:
-            if spec and spec.untrusted_output:
-                ctx.tainted = True
-            output_text = str(raw_result)
-            ok = not output_text.startswith("ERROR")
-
-        audit_log(func_name, args, ok, ctx.tainted, len(output_text))
-        return output_text
-
-    except Exception as e:
+        raw = _get_handler(func_name)(args)
+    except ImportError as e:
+        log.exception("Tool %s unavailable", func_name)
+        return _fail(func_name, args, ctx, f"ERROR tool_unavailable: missing dependency ({e.name}).")
+    except Exception:
         log.exception("Tool execution error in %s", func_name)
-        audit_log(func_name, args, False, ctx.tainted, 0)
         # Never leak raw python traceback to LLM / spoken output (TL-15)
-        return f"ERROR tool_failed: {func_name}. Tell the user briefly that it did not work."
+        return _fail(func_name, args, ctx,
+                     f"ERROR tool_failed: {func_name}. Tell the user briefly that it did not work.")
+
+    result = raw if isinstance(raw, ToolResult) else ToolResult(text=str(raw))
+    if not isinstance(raw, ToolResult):
+        result.ok = not result.text.startswith("ERROR")
+    if result.tainted or (spec and spec.untrusted_output and risk == "read"):
+        result.tainted = True
+        ctx.tainted = True
+
+    audit_log(func_name, args, result.ok, ctx.tainted, len(result.text))
+    return result
+
+
+def execute_tool_call(func_name: str, args_json: str, ctx: TurnContext | None = None) -> str:
+    """Text-only wrapper (tests, MCP). Without a TTS pipeline, pending commits run immediately."""
+    result = run_tool(func_name, args_json, ctx)
+    if result.commit:
+        try:
+            result.commit()
+        except Exception:
+            log.exception("Commit callback failed for %s", func_name)
+    return result.text

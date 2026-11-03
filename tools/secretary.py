@@ -122,31 +122,25 @@ def _save_persistent_timers():
 
 
 def _speak_alert_sync(message: str):
-    """Play alert chime and speak reminder when timer ends. Safe body gesture only (TL-09)."""
-    # Safe upper body gesture (wave greeting) instead of dangerous base motion
+    """Play alert chime and speak reminder when timer ends using thread-safe audio lock (TL-09, R-08)."""
     send_motion_to_3d_sim("wave_greeting", duration=3.0, bpm=120)
     log.info("Timer alert fired: %s", message)
 
     try:
-        import pygame
-        from audio_io import fetch_piper_tts_sync
+        from audio_io import fetch_piper_tts_sync, play_audio_bytes_sync
 
         audio_bytes, _ = fetch_piper_tts_sync(message, getattr(config, "TTS_MODE", "chipmunk"))
-        if audio_bytes and pygame.mixer.get_init():
-            # Wait up to 3 seconds if audio bus is currently busy
-            for _ in range(30):
-                if not pygame.mixer.music.get_busy():
-                    break
-                time.sleep(0.1)
-            pygame.mixer.music.load(io.BytesIO(audio_bytes))
-            pygame.mixer.music.play()
+        if audio_bytes:
+            play_audio_bytes_sync(audio_bytes)
+            return
     except Exception as e:
         log.warning("Audio alert playback fallback: %s", e)
-        try:
-            import winsound
-            winsound.Beep(1000, 600)
-        except Exception:
-            pass
+
+    try:
+        import winsound
+        winsound.Beep(1000, 600)
+    except Exception:
+        pass
 
 
 def _fire_timer(tid: int, label: str):

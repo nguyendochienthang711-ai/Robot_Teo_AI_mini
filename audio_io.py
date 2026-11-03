@@ -1,7 +1,9 @@
 import asyncio
 import contextlib
 import io
+import logging
 import re
+import threading
 import time
 import urllib.parse
 import wave
@@ -25,6 +27,8 @@ from config import (
     VN_CHARS_RE,
 )
 
+log = logging.getLogger("teo.audio")
+
 # Thử nạp pycaw để tự động hạ nhỏ nhạc trình duyệt khi Tèo đang nghe
 try:
     from pycaw.pycaw import AudioUtilities
@@ -32,17 +36,58 @@ try:
 except Exception:
     HAS_PYCAW = False
 
-pygame.mixer.init()
 recognizer = sr.Recognizer()
+audio_play_lock = threading.RLock()
+_saved_volumes: dict[int, float] = {}
+_mixer_initialized = False
 
-try:
-    detect("Khởi động hệ thống tiếng Việt")
-except Exception:
-    pass
+
+def ensure_mixer_init() -> bool:
+    """Lazy-initialize pygame.mixer on first playback need (R-20)."""
+    global _mixer_initialized
+    if _mixer_initialized and pygame.mixer.get_init():
+        return True
+    try:
+        pygame.mixer.init()
+        _mixer_initialized = True
+        return True
+    except Exception as e:
+        log.warning("Failed to initialize pygame.mixer: %s", e)
+        return False
+
+
+def play_audio_bytes_sync(audio_bytes: bytes, abort_event: threading.Event | None = None) -> None:
+    """Thread-safe serialized playback on pygame.mixer.music (R-08)."""
+    if not audio_bytes or not ensure_mixer_init():
+        return
+    with audio_play_lock:
+        try:
+            sound_stream = io.BytesIO(audio_bytes)
+            pygame.mixer.music.load(sound_stream)
+            pygame.mixer.music.play()
+            while pygame.mixer.music.get_busy():
+                if abort_event is not None and abort_event.is_set():
+                    pygame.mixer.music.stop()
+                    break
+                time.sleep(0.02)
+        finally:
+            try:
+                pygame.mixer.music.unload()
+            except Exception:
+                pass
+
+
+def stop_audio_playback() -> None:
+    """Immediately stop any active pygame.mixer playback (R-24)."""
+    try:
+        if pygame.mixer.get_init():
+            pygame.mixer.music.stop()
+    except Exception:
+        pass
 
 
 def set_background_music_volume(duck: bool):
-    """Tự động hạ nhạc trình duyệt (Chrome/Edge/Spotify/mpv) xuống 15% khi sếp đang nói."""
+    """Tự động hạ nhạc trình duyệt xuống 15% khi sếp đang nói và khôi phục đúng mức âm lượng cũ (R-23)."""
     if not HAS_PYCAW:
         return
     target_apps = {"chrome.exe", "msedge.exe", "spotify.exe", "mpv.exe", "firefox.exe"}
@@ -50,8 +95,18 @@ def set_background_music_volume(duck: bool):
         sessions = AudioUtilities.GetAllSessions()
         for session in sessions:
             if session.Process and session.Process.name().lower() in target_apps:
+                pid = session.Process.pid
                 vol = session.SimpleAudioVolume
-                vol.SetMasterVolume(0.15 if duck else 1.0, None)
+                if duck:
+                    if pid not in _saved_volumes:
+                        try:
+                            _saved_volumes[pid] = float(vol.GetMasterVolume())
+                        except Exception:
+                            _saved_volumes[pid] = 1.0
+                    vol.SetMasterVolume(min(_saved_volumes[pid], 0.15), None)
+                else:
+                    orig = _saved_volumes.pop(pid, 1.0)
+                    vol.SetMasterVolume(orig, None)
     except Exception:
         pass
 
@@ -67,14 +122,16 @@ def detect_lang_fast(text: str) -> str:
 
 
 def clean_for_tts(text: str) -> str:
-    """Làm sạch ký tự đặc biệt và dấu '...' tránh lỗi NoAudioReceived của EdgeTTS."""
+    """Làm sạch ký tự đặc biệt và dấu '...' tránh lỗi của bộ đọc TTS."""
     text = re.sub(r"\.{2,}", ",", text)
     text = re.sub(r"[*#_~`🎵🎶🤖🎙️]+", "", text)
     return re.sub(r"\s+", " ", text).strip()
 
 
-def record_with_auto_vad(filename="mic_input.wav", silence_limit_sec=0.7, max_sec=15.0):
-    """Thu âm tự động ngắt khi sếp dừng nói 0.7 giây."""
+def record_with_auto_vad(filename: str | None = None, silence_limit_sec: float = 0.7, max_sec: float = 15.0):
+    """Thu âm tự động ngắt khi sếp dừng nói 0.7 giây (lưu file tạm trong CACHE_DIR - R-20)."""
+    if filename is None:
+        filename = str(config.CACHE_DIR / "mic_input.wav")
     print("\n🎙️ [ĐANG NGHE... Sếp cứ nói tự nhiên, ngừng nói 0.7 giây là Tèo tự trả lời!]")
     set_background_music_volume(duck=True)
     frames = []
@@ -132,19 +189,28 @@ def speech_to_text(audio_path: str) -> str:
 
 
 _piper_cache: dict[str, PiperVoice] = {}
+_piper_lock = threading.Lock()
 
 
 def get_piper_voice(model_path) -> PiperVoice | None:
-    """Tải và lưu trữ vào RAM mô hình Piper ONNX tương ứng."""
+    """Tải lười (lazy-load) và lưu trữ vào RAM mô hình Piper ONNX tương ứng (R-20)."""
     path_str = str(model_path)
-    if path_str not in _piper_cache:
-        if model_path.exists():
-            try:
-                _piper_cache[path_str] = PiperVoice.load(path_str)
-            except Exception as e:
-                print(f"⚠️ Không tải được Piper voice {model_path.name}: {e}")
-                return None
-    return _piper_cache.get(path_str)
+    with _piper_lock:
+        if path_str not in _piper_cache:
+            if model_path.exists():
+                try:
+                    _piper_cache[path_str] = PiperVoice.load(path_str)
+                except Exception as e:
+                    print(f"⚠️ Không tải được Piper voice {model_path.name}: {e}")
+                    return None
+        return _piper_cache.get(path_str)
+
+
+def warmup_piper_default() -> None:
+    """Khởi động sẵn mô hình mặc định vào RAM khi chạy ứng dụng chính (R-20)."""
+    mode = getattr(config, "TTS_MODE", "chipmunk").lower()
+    if mode in PIPER_PROFILES:
+        get_piper_voice(PIPER_PROFILES[mode]["model"])
 
 
 def fetch_piper_tts_sync(text: str, profile_name: str = "chipmunk") -> tuple[bytes, str]:
@@ -185,25 +251,23 @@ def fetch_piper_tts_sync(text: str, profile_name: str = "chipmunk") -> tuple[byt
         return b"", ""
 
 
-# Khởi động sẵn mô hình mặc định vào RAM
-if "chipmunk" in PIPER_PROFILES:
-    get_piper_voice(PIPER_PROFILES["chipmunk"]["model"])
-
-
 async def fetch_google_tts_fast(
     http_session: aiohttp.ClientSession, text: str, lang: str = "vi"
 ) -> tuple[bytes, str]:
-    """Luồng Google TTS HTTP Keep-Alive: phát âm chuẩn tiếng Việt, phản xạ tức thì (~150-250ms)."""
+    """Luồng Google TTS HTTP Keep-Alive, tự chia nhỏ chuỗi ≤ 180 ký tự (R-22)."""
     tl = "zh-CN" if lang.startswith("zh") else lang
-    q = urllib.parse.quote(text)
-    url = f"https://translate.googleapis.com/translate_tts?ie=UTF-8&client=tw-ob&tl={tl}&q={q}"
+    chunks = [text[i : i + 180] for i in range(0, len(text), 180)] or [text]
+    out_bytes = bytearray()
     try:
-        async with http_session.get(url, timeout=aiohttp.ClientTimeout(total=4.0)) as resp:
-            if resp.status == 200:
-                return await resp.read(), f"GoogleTTS ({tl})"
+        for part in chunks:
+            q = urllib.parse.quote(part)
+            url = f"https://translate.googleapis.com/translate_tts?ie=UTF-8&client=tw-ob&tl={tl}&q={q}"
+            async with http_session.get(url, timeout=aiohttp.ClientTimeout(total=4.0)) as resp:
+                if resp.status == 200:
+                    out_bytes.extend(await resp.read())
     except Exception:
         pass
-    return b"", f"GoogleTTS ({tl})"
+    return bytes(out_bytes), f"GoogleTTS ({tl})"
 
 
 async def fetch_tts_bytes_smart(
@@ -213,10 +277,9 @@ async def fetch_tts_bytes_smart(
     prefer_fast: bool = False,
 ) -> tuple[bytes, float, str, bool]:
     """
-    Cơ chế TTS gọn nhẹ và ổn định tuyệt đối:
-    - Piper Offline (chipmunk, diemdam, tramvang) siêu tốc ~60-120ms, không độ trễ, không phụ thuộc mạng.
-    - Chuyển đổi dễ dàng qua biến môi trường TEO_TTS_MODE.
-    - Fallback trực tiếp sang Google TTS cho chế độ google hoặc ngoại ngữ (en, zh, ja).
+    Cơ chế TTS gọn nhẹ và ổn định:
+    - Piper Offline (chipmunk, diemdam, tramvang) ~60-120ms.
+    - Fallback trực tiếp sang Google TTS cho chế độ google hoặc ngoại ngữ.
     """
     t0 = time.perf_counter()
     clean_sent = clean_for_tts(sentence)
@@ -225,7 +288,6 @@ async def fetch_tts_bytes_smart(
 
     lang = detect_lang_fast(clean_sent)
 
-    # 1. Chế độ Piper Offline đa phong cách (Sóc Chuột / Nam Trầm Điềm Đạm / Nam Trầm Vang)
     current_mode = getattr(config, "TTS_MODE", "chipmunk").lower()
     if current_mode in PIPER_PROFILES and lang == "vi":
         audio_bytes, voice_tag = await asyncio.to_thread(fetch_piper_tts_sync, clean_sent, current_mode)
@@ -233,6 +295,5 @@ async def fetch_tts_bytes_smart(
             ms = (time.perf_counter() - t0) * 1000
             return audio_bytes, ms, voice_tag, False
 
-    # 2. Google TTS (khi chọn TEO_TTS_MODE=google hoặc khi là ngoại ngữ en, zh, ja)
     fast_audio, fast_voice = await fetch_google_tts_fast(http_session, clean_sent, lang)
     return fast_audio, (time.perf_counter() - t0) * 1000, fast_voice, True

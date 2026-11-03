@@ -178,12 +178,22 @@ def main():
 
             try:
                 raw_bytes, addr = sock.recvfrom(1024)
-                cmd = json.loads(raw_bytes.decode("utf-8"))
+                cmd = json.loads(raw_bytes.decode("utf-8", errors="replace"))
+                if not isinstance(cmd, dict):
+                    raise ValueError("UDP payload must be a JSON object")
                 if cmd.get("id"):
-                    sock.sendto(json.dumps({"ack": cmd.get("id")}).encode("utf-8"), addr)
-                current_state["motion"] = cmd.get("motion", "idle")
-                current_state["bpm"] = int(cmd.get("bpm", 120))
+                    try:
+                        sock.sendto(json.dumps({"ack": cmd.get("id")}).encode("utf-8"), addr)
+                    except OSError:
+                        pass
+                motion = str(cmd.get("motion", "idle"))
+                bpm = max(60, min(160, int(cmd.get("bpm", 120))))
                 duration = float(cmd.get("duration", 3.0))
+                if not math.isfinite(duration):
+                    duration = 3.0
+                duration = max(0.5, min(8.0, duration))
+                current_state["motion"] = motion
+                current_state["bpm"] = bpm
                 current_state["end_time"] = time.time() + duration
                 print(
                     f"-> Thực thi Motion/Omni: {current_state['motion']} "
@@ -191,6 +201,8 @@ def main():
                 )
             except BlockingIOError:
                 pass
+            except (ConnectionResetError, ValueError, TypeError, OSError) as err:
+                print(f"[Sim UDP Warning]: Bỏ qua gói UDP lỗi: {err}")
 
             apply_motion_bundle(data, time.time() - start_t, current_state)
             mujoco.mj_step(model, data)

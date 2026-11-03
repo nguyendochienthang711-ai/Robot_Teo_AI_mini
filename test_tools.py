@@ -16,7 +16,7 @@ import tools.search
 import tools.secretary
 import tools.system
 import tools.vision
-from tools import TOOLS_SCHEMA, execute_tool_call
+from tools import TOOLS_SCHEMA, execute_tool_call, run_tool
 from tools.common import load_json, update_json
 from tools.documents import _wrap_long
 from tools.policy import TurnContext
@@ -562,6 +562,63 @@ class TestTeoToolsFullSuite(unittest.TestCase):
         ctx_rate.calls = 6
         res_limit = execute_tool_call("quan_ly_cong_viec", json.dumps({"thao_tac": "xem"}), ctx=ctx_rate)
         self.assertIn("ERROR rate_limit", res_limit)
+
+    # ==========================================================================
+    # 16. DEFERRED BOOKMARK COMMIT, GRANULAR RISK & HISTORY TRIMMING (R-03..R-17)
+    # ==========================================================================
+    def test_16_deferred_commit_granular_risk_and_history_trim(self):
+        from brain import trim_chat_history
+
+        # 1. Deferred bookmark commit (R-03, R-16): index stays 0 until commit() runs
+        doc_file = self.tmp_dir / "deferred.md"
+        doc_file.write_text(
+            "Câu số một thử nghiệm đọc trực tiếp. Câu số hai kiểm tra lưu vị trí.",
+            encoding="utf-8",
+        )
+        res = run_tool(
+            "doc_va_tom_tat_tai_lieu",
+            json.dumps({"thao_tac": "doc_tu_dau", "duong_dan": str(doc_file), "so_cau_doc": 1}),
+        )
+        self.assertIsNotNone(res.speak)
+        self.assertIsNotNone(res.commit)
+        bm_before = load_json(config.BOOKMARK_FILE, {})
+        self.assertEqual(bm_before["files"][str(doc_file.resolve())]["index"], 0)
+
+        # Now invoke commit() (simulating TTS completion)
+        res.commit()
+        bm_after = load_json(config.BOOKMARK_FILE, {})
+        self.assertEqual(bm_after["files"][str(doc_file.resolve())]["index"], 1)
+
+        # 2. Granular risk_of (R-17): tainted turn allows 'xem' (read) but blocks 'them' (write)
+        ctx = TurnContext(tainted=True)
+        res_view = execute_tool_call("quan_ly_cong_viec", json.dumps({"thao_tac": "xem"}), ctx=ctx)
+        self.assertNotIn("ERROR security_policy", res_view)
+        res_add = execute_tool_call(
+            "quan_ly_cong_viec",
+            json.dumps({"thao_tac": "them", "noi_dung": "Injected task"}),
+            ctx=ctx,
+        )
+        self.assertIn("ERROR security_policy", res_add)
+
+        # 3. trim_chat_history keeps system prompt and never splits tool call pairs (R-04, R-05)
+        history = [{"role": "system", "content": "SYS"}]
+        for i in range(5):
+            history.append({"role": "user", "content": f"U{i}"})
+            history.append(
+                {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [{"id": f"tc{i}", "type": "function", "function": {"name": "x", "arguments": "{}"}}],
+                }
+            )
+            history.append({"role": "tool", "tool_call_id": f"tc{i}", "content": "ok"})
+            history.append({"role": "assistant", "content": f"A{i}"})
+
+        trim_chat_history(history, max_turns=2)
+        self.assertEqual(history[0]["role"], "system")
+        self.assertEqual(history[1], {"role": "user", "content": "U3"})
+        user_count = sum(1 for m in history if m["role"] == "user")
+        self.assertEqual(user_count, 2)
 
 
 if __name__ == "__main__":

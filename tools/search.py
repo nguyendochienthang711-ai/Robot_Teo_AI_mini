@@ -133,7 +133,7 @@ def _fetch_web_search(query: str) -> ToolResult | str:
         combined = " | ".join(snippets)
         wrapped = wrap_untrusted("web", combined)
         return ToolResult(
-            text=f"Kết quả tra cứu cho '{query}': {combined}",
+            text=f"Kết quả tra cứu cho '{query}':\n{wrapped}",
             tainted=True,
         )
     except Exception as e:

@@ -226,9 +226,7 @@ def tool_doc_va_tom_tat_tai_lieu(args: dict) -> ToolResult | str:
 
         update_json(config.BOOKMARK_FILE, {"active_file": "", "files": {}}, mutate)
 
-    # Pre-advance for state consistency while saving on commit
-    bm_entry["index"] = end_idx
-    bm_entry["updated_at"] = time.strftime("%H:%M %d/%m/%Y")
+    # Save active_file & total without advancing index until commit_bookmark() is called after TTS finishes (R-16)
     update_json(config.BOOKMARK_FILE, {"active_file": "", "files": {}}, lambda b: b.update(bookmarks))
 
     return ToolResult(
@@ -273,7 +271,7 @@ def tool_xu_ly_bo_nho_tam_clipboard(args: dict) -> ToolResult | str:
 
     wrapped = wrap_untrusted("clipboard", clip_text[:3000])
     return ToolResult(
-        text=f"Nội dung sếp vừa copy trong clipboard là: {clip_text[:3000]}",
+        text=f"Nội dung sếp vừa copy trong clipboard là:\n{wrapped}",
         tainted=True,
     )
 

@@ -54,6 +54,30 @@ TOOL_SPECS: dict[str, ToolSpec] = {
 }
 
 
+def risk_of(func_name: str, args: dict) -> Risk:
+    """Determine granular action risk based on tool name and operation parameter (R-17)."""
+    action = (args or {}).get("thao_tac", "")
+    if func_name == "quan_ly_cong_viec":
+        if action == "xem":
+            return "read"
+        if action in ("xoa", "xoa_het"):
+            return "destructive"
+        return "write"
+    if func_name == "xu_ly_bo_nho_tam_clipboard":
+        return "write" if action == "ghi" else "read"
+    if func_name == "ghi_nho_thong_tin_dai_han":
+        if action in ("tim_kiem", "xem_tat_ca"):
+            return "read"
+        if action == "xoa":
+            return "destructive"
+        return "write"
+    if func_name == "dong_ho_tap_trung_pomodoro":
+        return "read" if action == "xem_trang_thai" else "write"
+
+    spec = TOOL_SPECS.get(func_name)
+    return spec.risk if spec else "read"
+
+
 def wrap_untrusted(source: str, text: str, limit: int = 3000) -> str:
     """Sanitize and wrap untrusted external data with prompt isolation tag (TL-04)."""
     cleaned = re.sub(r"[\x00-\x08\x0b-\x1f]", "", str(text))[:limit]
@@ -78,4 +102,3 @@ def audit_log(tool_name: str, args: dict, ok: bool, tainted: bool, result_len: i
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
     except Exception:
         pass
-

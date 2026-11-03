@@ -171,9 +171,8 @@ def _play_youtube_background(url_or_query: str) -> str | None:
             startupinfo=startupinfo,
             creationflags=no_win_flag,
         )
-        time.sleep(0.5)
-        if _bg_music_proc.poll() is None:
-            return "trình phát ngầm không cửa sổ"
+        # Note: Edge/Chrome launcher may hand off to an existing process and exit 0 immediately (R-12)
+        return "trình phát ngầm không cửa sổ"
 
     return None
 

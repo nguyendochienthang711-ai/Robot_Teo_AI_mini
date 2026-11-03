@@ -60,7 +60,7 @@ def _get_active_window_title() -> str:
 
 
 def _capture_screen_image() -> Image.Image | None:
-    """Capture only the active window for privacy instead of the whole screen (TL-06)."""
+    """Capture only the active window for privacy instead of the whole screen (TL-06, R-13)."""
     if sys.platform == "win32":
         try:
             user32 = ctypes.windll.user32
@@ -74,6 +74,7 @@ def _capture_screen_image() -> Image.Image | None:
                         return ImageGrab.grab(bbox=(rect.left, rect.top, rect.right, rect.bottom))
         except Exception:
             pass
+        return None
 
     try:
         return ImageGrab.grab()
