@@ -22,6 +22,11 @@ current_state = {
     "bpm": 120,
     "end_time": 0.0,
     "last_cliff_alert": 0.0,
+    "agent_state": "IDLE",
+    "eye_mood": "relaxed_blink",
+    "eye_rgba": [0.0, 0.88, 1.0, 1.0],
+    "arm_pose": [0.0, 0.0],
+    "wheel_locked": False,
 }
 
 
@@ -64,9 +69,15 @@ def apply_motion_bundle(data, t: float, state: dict):
         motion = "idle"
 
     if motion == "idle":
-        # Thở nhẹ tự nhiên, hai tay đung đưa nhẹ
-        l_arm = 0.08 * math.sin(2.0 * t)
-        r_arm = 0.08 * math.sin(2.0 * t)
+        pose = state.get("arm_pose") or [0.0, 0.0]
+        if state.get("agent_state", "IDLE") != "IDLE" and (pose[0] != 0.0 or pose[1] != 0.0):
+            # Tư thế cánh tay biểu đạt trạng thái AI (LISTENING / THINKING / HITL_CONFIRM / SPEAKING / ALERT)
+            l_arm = float(pose[0]) + 0.04 * math.sin(3.0 * t)
+            r_arm = float(pose[1]) + 0.04 * math.sin(3.0 * t)
+        else:
+            # Thở nhẹ tự nhiên, hai tay đung đưa nhẹ
+            l_arm = 0.08 * math.sin(2.0 * t)
+            r_arm = 0.08 * math.sin(2.0 * t)
         # Giữ robot đứng yên chắc chắn trên mặt bàn khi nhàn rỗi
         data.qvel[0] = 0.0
         data.qvel[1] = 0.0
@@ -141,6 +152,13 @@ def apply_motion_bundle(data, t: float, state: dict):
     # Unibody Pod (bỏ servo cổ): chuyển biểu cảm xoay cổ sang xoay thân Holonomic trên đế Omni
     if neck != 0.0 and omega_rot == 0.0:
         omega_rot = neck * 2.2
+
+    # Nếu State Machine đang khóa bánh xe (LISTENING thu âm hoặc chờ HITL), triệt tiêu vận tốc đế
+    if state.get("wheel_locked", False):
+        vx, vy, omega_rot = 0.0, 0.0, 0.0
+        data.qvel[0] = 0.0
+        data.qvel[1] = 0.0
+        data.qvel[5] = 0.0
 
     # Tính tốc độ 3 bánh xe Omni theo công thức LeKiwi
     w1, w2, w3 = compute_lekiwi_wheel_speeds(vx, vy, omega_rot)
@@ -243,11 +261,33 @@ def make_key_callback(state: dict):
             state["motion"] = "spin_around"
             state["end_time"] = time.time() + 2.5
             print("👉 [PHÍM R]: Tự xoay tròn 360 độ tại chỗ (spin_around)")
+        elif keycode in (ord("T"), ord("t")):
+            # Mô phỏng chạm tay lên cảm biến chạm TTP223 trên đỉnh đầu Tèo
+            try:
+                from teo_harness import state_machine
+                touch_pkt = sign_wifi_packet(
+                    {"id": f"sim_touch_{int(time.time() * 1000)}", "event": "touch_confirm"},
+                    role="robot_node",
+                )
+                ok_t, reason_t = state_machine.handle_robot_node_packet(touch_pkt)
+                print(f"🖐️ [PHÍM T - CHẠM ĐỈNH ĐẦU TTP223]: ok={ok_t} ({reason_t})")
+            except Exception as err:
+                print(f"🖐️ [PHÍM T - TTP223]: {err}")
         elif keycode == 32:  # Space bar
             state["motion"] = "idle"
             state["end_time"] = 0.0
             print("🛑 [SPACE]: Dừng khẩn cấp / Đứng yên (idle)")
     return key_callback
+
+
+def _update_st7789_eye_color(model, rgba: list[float]) -> None:
+    """Cập nhật màu mắt ST7789 trên mô hình 3D MuJoCo theo trạng thái AI (thay cho vòng LED)."""
+    if len(rgba) != 4:
+        return
+    for geom_name in ("lcd_eye_left", "lcd_eye_right"):
+        gid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, geom_name)
+        if gid >= 0:
+            model.geom_rgba[gid] = rgba
 
 
 def main():
@@ -283,14 +323,32 @@ def main():
                 if not isinstance(cmd, dict):
                     raise ValueError("UDP payload must be a JSON object")
 
+                pkt_type = cmd.get("type", "motion_cmd")
+                req_perm = "state_sync" if pkt_type == "state_sync" else "motion_cmd"
+
                 # Xác thực bảo mật gói tin Wi-Fi qua HMAC-SHA256 & chống replay
                 ok_auth, reason = verify_wifi_packet(
                     cmd,
                     expected_role="laptop_controller",
-                    required_permission="motion_cmd",
+                    required_permission=req_perm,
                 )
                 if not ok_auth:
                     print(f"🚫 [Sim Security Blocked]: Từ chối gói UDP không hợp lệ ({reason})")
+                    continue
+
+                if pkt_type == "state_sync":
+                    current_state["agent_state"] = str(cmd.get("state", "IDLE"))
+                    current_state["eye_mood"] = str(cmd.get("eye_mood", "relaxed_blink"))
+                    current_state["wheel_locked"] = bool(cmd.get("wheel_locked", False))
+                    if isinstance(cmd.get("arm_pose"), list) and len(cmd["arm_pose"]) == 2:
+                        current_state["arm_pose"] = [float(cmd["arm_pose"][0]), float(cmd["arm_pose"][1])]
+                    if isinstance(cmd.get("eye_rgba"), list) and len(cmd["eye_rgba"]) == 4:
+                        current_state["eye_rgba"] = [float(x) for x in cmd["eye_rgba"]]
+                        _update_st7789_eye_color(model, current_state["eye_rgba"])
+                    print(
+                        f"👁️ [ST7789 AI State -> {current_state['agent_state']}]: "
+                        f"eye={current_state['eye_mood']}, wheel_locked={current_state['wheel_locked']}"
+                    )
                     continue
 
                 if cmd.get("id"):

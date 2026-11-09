@@ -122,7 +122,13 @@ def _save_persistent_timers():
 
 
 def _speak_alert_sync(message: str):
-    """Play alert chime and speak reminder when timer ends using thread-safe audio lock (TL-09, R-08)."""
+    """Play alert chime and speak reminder when timer ends using PriorityAudioBus (TL-09, R-08)."""
+    try:
+        from teo_harness import PRIO_ALERT, state_machine
+        state_machine.set_state("ALERT", detail="pomodoro_timer_fired")
+    except Exception:
+        PRIO_ALERT = 0
+
     send_motion_to_3d_sim("wave_greeting", duration=3.0, bpm=120)
     log.info("Timer alert fired: %s", message)
 
@@ -131,10 +137,17 @@ def _speak_alert_sync(message: str):
 
         audio_bytes, _ = fetch_piper_tts_sync(message, getattr(config, "TTS_MODE", "chipmunk"))
         if audio_bytes:
-            play_audio_bytes_sync(audio_bytes)
+            play_audio_bytes_sync(audio_bytes, priority=PRIO_ALERT, label="pomodoro_alert")
             return
     except Exception as e:
         log.warning("Audio alert playback fallback: %s", e)
+    finally:
+        try:
+            from teo_harness import state_machine
+            if state_machine.state == "ALERT":
+                state_machine.set_state("IDLE", detail="alert_done")
+        except Exception:
+            pass
 
     try:
         import winsound

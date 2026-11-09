@@ -14,6 +14,7 @@ from audio_io import (
 )
 from brain import stop_speaking, stream_llm_and_speak
 from config import DEEPSEEK_API_KEY, LOGS_DIR, MODEL_NAME
+from teo_harness import build_dynamic_user_message, state_machine
 from tools.secretary import restore_timers
 
 
@@ -84,11 +85,12 @@ async def main():
                     continue
 
             now_str = time.strftime("%H:%M ngày %d/%m/%Y")
-            user_msg = f"[Giờ hệ thống: {now_str}] {user_text}"
+            user_msg = build_dynamic_user_message(user_text, now_str=now_str)
 
             try:
                 await stream_llm_and_speak(http_session, user_message=user_msg)
             except Exception as e:
+                state_machine.set_state("IDLE", detail="turn_error")
                 set_background_music_volume(duck=False)
                 print(f"❌ Lỗi: {e}")
 

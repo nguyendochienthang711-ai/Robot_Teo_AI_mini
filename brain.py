@@ -16,6 +16,14 @@ from audio_io import (
     stop_audio_playback,
 )
 from config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, MODEL_NAME, SYSTEM_PROMPT
+from teo_harness import (
+    PRIO_DOC_READER,
+    PRIO_SPEECH,
+    TurnTrace,
+    compute_prompt_cache_fingerprint,
+    record_turn_trace,
+    state_machine,
+)
 from tools import TOOLS_SCHEMA, ToolResult, TurnContext, run_tool
 from tools.documents import _split_into_sentences, _wrap_long
 from tools.guardrails import (
@@ -45,6 +53,7 @@ MAX_HISTORY_TURNS = 8
 class SpeakItem:
     text: str
     on_done: Callable[[], None] | None = None
+    priority: int = PRIO_SPEECH
 
 
 _llm_client: AsyncOpenAI | None = None
@@ -97,9 +106,19 @@ async def stream_llm_and_speak(
     """
     _abort_speaking.clear()
     t_turn = time.perf_counter()
+    fp_before = compute_prompt_cache_fingerprint(
+        chat_history[0]["content"] if chat_history else SYSTEM_PROMPT, TOOLS_SCHEMA
+    )
+    state_machine.clear_turn_transitions()
+    state_machine.set_state("THINKING", detail="turn_start")
+
     sentence_queue: asyncio.Queue[SpeakItem | None] = asyncio.Queue()
     audio_queue: asyncio.Queue[tuple[int, SpeakItem, bytes, float, str] | None] = asyncio.Queue()
     full_reply_parts: list[str] = []
+    spoken_sentences_log: list[str] = []
+    tool_calls_log: list[dict] = []
+    ttft_recorded_ms: float = 0.0
+    ttfa_recorded_ms: float = 0.0
 
     raw_user_utterance = ""
     if user_message is not None:
@@ -122,13 +141,19 @@ async def stream_llm_and_speak(
     ctx = TurnContext(require_hitl=True)
     turn_succeeded = False
 
-    async def _enqueue_safe_sentence(text: str, on_done: Callable[[], None] | None = None) -> None:
+    async def _enqueue_safe_sentence(
+        text: str,
+        on_done: Callable[[], None] | None = None,
+        priority: int = PRIO_SPEECH,
+    ) -> None:
         safe_text = sanitize_output_guardrail(text)
         if safe_text:
-            await sentence_queue.put(SpeakItem(text=safe_text, on_done=on_done))
+            spoken_sentences_log.append(safe_text)
+            await sentence_queue.put(SpeakItem(text=safe_text, on_done=on_done, priority=priority))
 
     async def _emit_sentences_from_buf(buf: str, first_emitted: bool, label: str) -> tuple[str, bool]:
         """Extract all completed sentences from buffer and enqueue for TTS (R-06)."""
+        nonlocal ttft_recorded_ms
         while True:
             m = SENT_RE.search(buf)
             if not m or len(buf[: m.end()].strip()) < 6:
@@ -138,6 +163,8 @@ async def stream_llm_and_speak(
             if not first_emitted:
                 first_emitted = True
                 llm_first_ms = (time.perf_counter() - t_turn) * 1000
+                if ttft_recorded_ms == 0.0:
+                    ttft_recorded_ms = round(llm_first_ms, 1)
                 print(f"🧠 [{label} ({llm_first_ms:.0f} ms)]: \"{sanitize_output_guardrail(sent)}\"")
             await _enqueue_safe_sentence(sent)
         return buf, first_emitted
@@ -184,7 +211,7 @@ async def stream_llm_and_speak(
                         speak_chunks = [p for s in raw_sents for p in _wrap_long(s, limit=180)] or [res.speak]
                         for i, piece in enumerate(speak_chunks):
                             cb = res.commit if (i == len(speak_chunks) - 1) else None
-                            await _enqueue_safe_sentence(piece, on_done=cb)
+                            await _enqueue_safe_sentence(piece, on_done=cb, priority=PRIO_DOC_READER)
                         confirm_msg = f"Em đang đọc tài liệu cho sếp ngay đây ạ."
                         full_reply_parts.append(confirm_msg)
                         turn_succeeded = True
@@ -298,12 +325,23 @@ async def stream_llm_and_speak(
                             ok=False,
                         )
 
+                    tool_calls_log.append(
+                        {
+                            "name": t_name,
+                            "ok": res.ok,
+                            "tainted": res.tainted,
+                            "hitl_pending": res.text.startswith("PENDING_HITL_CONFIRMATION"),
+                        }
+                    )
+                    if res.text.startswith("PENDING_HITL_CONFIRMATION"):
+                        state_machine.set_state("HITL_CONFIRM", detail=t_name)
+
                     if res.speak and not _abort_speaking.is_set():
                         raw_sents = _split_into_sentences(res.speak) or [res.speak]
                         speak_chunks = [p for s in raw_sents for p in _wrap_long(s, limit=180)] or [res.speak]
                         for i, piece in enumerate(speak_chunks):
                             cb = res.commit if (i == len(speak_chunks) - 1) else None
-                            await _enqueue_safe_sentence(piece, on_done=cb)
+                            await _enqueue_safe_sentence(piece, on_done=cb, priority=PRIO_DOC_READER)
                         llm_tool_text = (
                             "Direct TTS is already reading the requested document sentences aloud to the user. "
                             "Reply with at most one short confirmation sentence."
@@ -342,6 +380,7 @@ async def stream_llm_and_speak(
                 await audio_queue.put((idx, item, audio_bytes, tts_ms, voice_used))
 
     async def player_worker():
+        nonlocal ttfa_recorded_ms
         while True:
             q_item = await audio_queue.get()
             if q_item is None:
@@ -351,6 +390,8 @@ async def stream_llm_and_speak(
                 continue
             if idx == 1:
                 ttfa = (time.perf_counter() - t_turn) * 1000
+                ttfa_recorded_ms = round(ttfa, 1)
+                state_machine.set_state("SPEAKING", detail="tts_playing")
                 print(
                     f"⚡ [Tèo TTS Câu 1 ({tts_ms:.0f} ms | Tổng phản hồi: {ttfa:.0f} ms | {voice_used})]: Phát âm thanh ngay!"
                 )
@@ -374,5 +415,34 @@ async def stream_llm_and_speak(
             working_history.append({"role": "assistant", "content": final_reply})
         chat_history[:] = working_history
         trim_chat_history(chat_history)
+
+    if get_pending_action() is not None:
+        state_machine.set_state("HITL_CONFIRM", detail="awaiting_user_confirm")
+    else:
+        state_machine.set_state("IDLE", detail="turn_complete")
+
+    fp_after = compute_prompt_cache_fingerprint(
+        chat_history[0]["content"] if chat_history else SYSTEM_PROMPT, TOOLS_SCHEMA
+    )
+    total_ms = round((time.perf_counter() - t_turn) * 1000, 1)
+    record_turn_trace(
+        TurnTrace(
+            turn_id=f"turn_{int(time.time() * 1000)}",
+            timestamp=round(time.time(), 3),
+            raw_user_text=raw_user_utterance,
+            cache_fingerprint_before=fp_before,
+            cache_fingerprint_after=fp_after,
+            cache_invariant_ok=(fp_before == fp_after),
+            state_transitions=[t["state"] for t in state_machine.get_turn_transitions()],
+            tool_calls=tool_calls_log,
+            hitl_triggered=(get_pending_action() is not None or ctx.confirmed),
+            tainted_turn=ctx.tainted,
+            spoken_sentences=spoken_sentences_log,
+            final_reply=final_reply,
+            ttft_ms=ttft_recorded_ms,
+            ttfa_ms=ttfa_recorded_ms,
+            total_ms=total_ms,
+        )
+    )
 
     return final_reply

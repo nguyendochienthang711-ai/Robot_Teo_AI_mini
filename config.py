@@ -70,6 +70,7 @@ MEMORY_FILE = BASE_DIR / "teo_memory.json"
 BOOKMARK_FILE = BASE_DIR / "teo_bookmarks.json"
 TIMERS_FILE = BASE_DIR / "teo_timers.json"
 AUDIT_LOG_FILE = LOGS_DIR / "tool_audit.jsonl"
+TRACE_LOG_FILE = LOGS_DIR / "agent_traces.jsonl"
 
 VISION_MODEL = os.getenv("VISION_MODEL", "deepseek-flash")
 DEFAULT_CITY = os.getenv("TEO_DEFAULT_CITY", "Ha Noi")

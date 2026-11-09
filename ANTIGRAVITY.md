@@ -83,7 +83,16 @@ Before implementing any new tool, skill, or hardware module, write an explicit s
 
 ```text
 teo_sim_AI/
+├── AGENTS.md                 # Workspace Rules & Harness Index (auto-discovered by Coding Agents)
+├── GEMINI.md                 # Google Antigravity Workspace Rules entry point
 ├── ANTIGRAVITY.md            # [YOU ARE HERE] Spec-Kit Constitution & Agent Operating Manual
+├── .agents/                  # AI Coding Agent Harness Customizations
+│   ├── hooks.json            # Lifecycle Hooks (.env secret guard + 10-turn quality gate)
+│   ├── mcp_config.json       # MCP Server configuration for TeoRobotMotionController
+│   ├── scripts/hook_guard.py # Hook execution engine
+│   └── skills/               # Progressive-disclosure Workspace Skills
+│       ├── teo-tool-builder/ # Spec-Kit tool consolidation & schema validator skill
+│       └── teo-eval-benchmark/# Dual-mode evaluation & replay benchmark skill
 ├── robot-ai-agent-ke-hoach.md# Master Project Roadmap, Hardware BOM & Technical Verification
 ├── tool_list_todo.md         # Full catalog of 28 functional tools across 7 groups
 ├── .env                      # API keys & local configuration (NEVER commit secrets)
@@ -91,12 +100,14 @@ teo_sim_AI/
 ├── config.py                 # Static configurations, system prompt, directory constants
 ├── audio_io.py               # Piper VITS Offline, GoogleTTS, Auto-VAD 0.7s, pycaw ducking
 ├── brain.py                  # DeepSeek 3-tier streaming pipeline, cache optimizer, guardrails
+├── teo_harness.py            # Runtime State Machine, Priority AudioBus, Context Builder & Eval Suite
 ├── main.py                   # CLI / Voice Interactive Server Entry Point
-├── teo_walle.xml             # 3D MuJoCo Physics Model (Red Bull scale, 11cm Kiwi base, ST7789)
-├── teo_sim_runner.py         # 3D MuJoCo Viewer with UDP HMAC listener and live keyboard hotkeys
-├── teo_motion_mcp.py         # FastMCP Server exposing robot motion tools to external IDEs
+├── teo_walle.xml             # 3D MuJoCo Physics Model (CAD v10 scale, 116x120x142mm, ST7789)
+├── teo_sim_runner.py         # 3D MuJoCo Viewer with UDP HMAC listener, ST7789 eye sync & hotkeys
+├── teo_motion_mcp.py         # FastMCP Server exposing robot motion & harness inspection tools
 ├── test_tools.py             # Full regression suite for tools, schemas, guardrails & dispatcher
 ├── test_sim_integration.py   # Integration tests for kinematics, HMAC handshake & IR cliff sensors
+├── test_agent_harness.py     # End-to-end tests for State Machine, AudioBus, Eval Suite & Coding Hooks
 ├── test_motion_interactive.py# 12-motion interactive test runner with LeKiwi speed verification
 ├── models/piper/             # Piper VITS ONNX models (vi_VN-diemdam, vi_VN-tramvang)
 ├── tai_lieu/                 # Local directory for PDF/Word/TXT documents to be read/summarized

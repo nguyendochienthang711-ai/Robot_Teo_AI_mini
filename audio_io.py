@@ -56,8 +56,8 @@ def ensure_mixer_init() -> bool:
         return False
 
 
-def play_audio_bytes_sync(audio_bytes: bytes, abort_event: threading.Event | None = None) -> None:
-    """Thread-safe serialized playback on pygame.mixer.music (R-08)."""
+def _raw_play_audio_bytes_sync(audio_bytes: bytes, abort_event: threading.Event | None = None) -> None:
+    """Low-level thread-safe serialized playback on pygame.mixer.music (R-08)."""
     if not audio_bytes or not ensure_mixer_init():
         return
     with audio_play_lock:
@@ -75,6 +75,28 @@ def play_audio_bytes_sync(audio_bytes: bytes, abort_event: threading.Event | Non
                 pygame.mixer.music.unload()
             except Exception:
                 pass
+
+
+def play_audio_bytes_sync(
+    audio_bytes: bytes,
+    abort_event: threading.Event | None = None,
+    priority: int = 1,
+    label: str = "speech",
+) -> None:
+    """Priority-aware playback routed through PriorityAudioBus (TL-09, R-08)."""
+    if not audio_bytes:
+        return
+    try:
+        from teo_harness import audio_bus
+        audio_bus.play_sync(
+            audio_bytes,
+            priority=priority,
+            abort_event=abort_event,
+            label=label,
+            playback_fn=_raw_play_audio_bytes_sync,
+        )
+    except Exception:
+        _raw_play_audio_bytes_sync(audio_bytes, abort_event)
 
 
 def stop_audio_playback() -> None:
@@ -134,6 +156,11 @@ def record_with_auto_vad(filename: str | None = None, silence_limit_sec: float =
         filename = str(config.CACHE_DIR / "mic_input.wav")
     print("\n🎙️ [ĐANG NGHE... Sếp cứ nói tự nhiên, ngừng nói 0.7 giây là Tèo tự trả lời!]")
     set_background_music_volume(duck=True)
+    try:
+        from teo_harness import state_machine
+        state_machine.set_state("LISTENING", detail="mic_recording")
+    except Exception:
+        pass
     frames = []
     has_spoken = False
     silent_chunks = 0
@@ -159,14 +186,29 @@ def record_with_auto_vad(filename: str | None = None, silence_limit_sec: float =
     except Exception as e:
         print(f"⚠️ Lỗi truy cập Micro: {e}")
         set_background_music_volume(duck=False)
+        try:
+            from teo_harness import state_machine
+            state_machine.set_state("IDLE", detail="mic_error")
+        except Exception:
+            pass
         return filename, False
 
     if not frames:
         set_background_music_volume(duck=False)
+        try:
+            from teo_harness import state_machine
+            state_machine.set_state("IDLE", detail="mic_empty")
+        except Exception:
+            pass
         return filename, False
 
     audio_data = np.concatenate(frames, axis=0)
     wav.write(filename, SAMPLE_RATE, audio_data)
+    try:
+        from teo_harness import state_machine
+        state_machine.set_state("THINKING" if has_spoken else "IDLE", detail="mic_done")
+    except Exception:
+        pass
     return filename, has_spoken
 
 

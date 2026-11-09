@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "teo-robot-harness": {
+      "command": "C:\\Users\\nguye\\miniconda3\\envs\\teo\\python.exe",
+      "args": [
+        "C:\\Users\\Public\\Documents\\AI_BAITAP\\teo_sim_AI\\teo_motion_mcp.py"
+      ],
+      "env": {
+        "PYTHONUTF8": "1"
+      }
+    }
+  }
+}

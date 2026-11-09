@@ -146,8 +146,19 @@ def send_motion_to_3d_sim(motion: str, duration: float = 3.0, bpm: int = 120, ti
         return False
 
 
+def _is_listening_motor_locked() -> bool:
+    """Return True if the runtime State Machine has locked motors during active mic recording."""
+    try:
+        from teo_harness import state_machine
+        return state_machine.state == "LISTENING"
+    except Exception:
+        return False
+
+
 def tool_dieu_khien_co_the_teo(args: dict) -> str:
     """Execute expressive upper-body gesture or Omni dance bundle (wave, nod, shake, happy_dance, moonwalk_dance)."""
+    if _is_listening_motor_locked():
+        return "ERROR motor_locked_listening: servos are locked while microphone is listening."
     motion = args.get("hanh_dong") or "wave_greeting"
     try:
         motion, dur, bpm = build_motion(motion, args.get("so_giay", 3.5), args.get("bpm", 125), is_omni=False)
@@ -165,6 +176,8 @@ def tool_dieu_khien_co_the_teo(args: dict) -> str:
 
 def tool_di_chuyen_da_huong_omni(args: dict) -> str:
     """Control 3-Wheel Omni Kiwi Drive (LeKiwi) holonomic base on desk with strict clamping (TL-03)."""
+    if _is_listening_motor_locked():
+        return "ERROR motor_locked_listening: Omni wheels are locked while microphone is listening."
     move = args.get("huong_di") or "slide_left"
     try:
         move, dur, bpm = build_motion(move, args.get("so_giay", 2.0), args.get("bpm", 120), is_omni=True)

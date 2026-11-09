@@ -1,0 +1,27 @@
+{
+  "teo-env-secret-guard": {
+    "enabled": true,
+    "PreToolUse": [
+      {
+        "matcher": "read_file|view_file|edit_file|write_file",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "C:\\Users\\nguye\\miniconda3\\envs\\teo\\python.exe scripts/hook_guard.py --mode pre-tool",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  },
+  "teo-periodic-10-turn-quality-gate": {
+    "enabled": true,
+    "PostInvocation": [
+      {
+        "type": "command",
+        "command": "C:\\Users\\nguye\\miniconda3\\envs\\teo\\python.exe scripts/hook_guard.py --mode post-invocation",
+        "timeout": 15
+      }
+    ]
+  }
+}

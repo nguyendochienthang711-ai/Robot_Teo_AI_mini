@@ -216,6 +216,27 @@ class PendingAction:
 
 
 _pending_action: PendingAction | None = None
+_touch_confirmed: bool = False
+
+
+def trigger_touch_confirm() -> bool:
+    """
+    Record an out-of-band physical TTP223 capacitive touch event on Teo's head.
+    Returns True if there was an active pending HITL action to confirm.
+    """
+    global _touch_confirmed
+    if get_pending_action() is not None:
+        _touch_confirmed = True
+        return True
+    return False
+
+
+def consume_touch_confirm() -> bool:
+    """Consume and reset the physical TTP223 touch confirmation flag."""
+    global _touch_confirmed
+    val = _touch_confirmed
+    _touch_confirmed = False
+    return val
 
 _CONFIRM_PHRASES = {
     "ok",
@@ -313,21 +334,28 @@ def get_pending_action() -> PendingAction | None:
 
 
 def clear_pending_action() -> None:
-    """Clear any stored pending HITL action."""
-    global _pending_action
+    """Clear any stored pending HITL action and touch state."""
+    global _pending_action, _touch_confirmed
     _pending_action = None
+    _touch_confirmed = False
 
 
 def detect_hitl_intent(user_text: str) -> Literal["confirm", "reject", "none"]:
     """
-    Check if a short user utterance is confirming ("OK", "đồng ý") or rejecting ("không", "hủy")
-    a pending HITL action.
+    Check if a short user utterance or physical TTP223 touch event is confirming ("OK", "đồng ý", touch)
+    or rejecting ("không", "hủy") a pending HITL action.
     """
+    if consume_touch_confirm():
+        return "confirm"
+
     norm = _strip_accents(user_text)
     norm = re.sub(r"[^a-z0-9\s]", " ", norm)
     norm = re.sub(r"\s+", " ", norm).strip()
     if not norm:
         return "none"
+
+    if norm in ("cham dau", "ttp223", "touch", "touch confirm"):
+        return "confirm"
 
     words = norm.split()
     if norm in _REJECT_PHRASES or (len(words) <= 5 and any(w in {"khong", "huy", "thoi", "dung", "cancel"} for w in words)):
@@ -357,7 +385,7 @@ def detect_hitl_intent(user_text: str) -> Literal["confirm", "reject", "none"]:
 RoleType = Literal["laptop_controller", "robot_node"]
 
 ROLE_PERMISSIONS: dict[str, set[str]] = {
-    "laptop_controller": {"motion_cmd"},
+    "laptop_controller": {"motion_cmd", "state_sync"},
     "robot_node": {"ack", "telemetry", "touch_confirm"},
 }
 
