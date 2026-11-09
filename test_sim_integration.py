@@ -30,14 +30,13 @@ class TestSimIntegration(unittest.TestCase):
         cls.data = mujoco.MjData(cls.model)
 
     def test_01_xml_structure_matches_hardware(self):
-        """Kiểm tra mô hình 3D khớp chính xác các thông số phần cứng trong kế hoạch."""
-        # 6 actuators tương ứng 6 kênh PWM trên PCA9685
-        self.assertEqual(self.model.nu, 6)
-        actuator_names = [mujoco.mj_id2name(self.model, mujoco.mjtObj.mjOBJ_ACTUATOR, i) for i in range(6)]
+        """Kiểm tra mô hình 3D khớp chính xác các thông số phần cứng CAD v10 Unibody."""
+        # 5 actuators tương ứng 5 servo MG90S của thiết kế Unibody (2 tay + 3 bánh Omni)
+        self.assertEqual(self.model.nu, 5)
+        actuator_names = [mujoco.mj_id2name(self.model, mujoco.mjtObj.mjOBJ_ACTUATOR, i) for i in range(5)]
         self.assertEqual(
             actuator_names,
             [
-                "servo_neck",
                 "servo_left_arm",
                 "servo_right_arm",
                 "servo_omni_w1",
@@ -46,7 +45,7 @@ class TestSimIntegration(unittest.TestCase):
             ],
         )
 
-        # Kiểm tra sự tồn tại của 3 mắt IR, tấm đế tròn, màn hình ST7789, TTP223, PCA9685, 2S 18650
+        # Kiểm tra sự tồn tại của 3 mắt IR, tấm đế, màn hình ST7789, TTP223, PCA9685, 2S 18650, đệm chống lật
         geom_names = [mujoco.mj_id2name(self.model, mujoco.mjtObj.mjOBJ_GEOM, i) for i in range(self.model.ngeom)]
         self.assertIn("omni_base_plate", geom_names)
         self.assertIn("ir1_led", geom_names)
@@ -57,6 +56,7 @@ class TestSimIntegration(unittest.TestCase):
         self.assertIn("pca9685_board", geom_names)
         self.assertIn("battery_cell_1", geom_names)
         self.assertIn("battery_cell_2", geom_names)
+        self.assertIn("omni_pad_tail", geom_names)
         self.assertIn("desk_top", geom_names)
         self.assertIn("safety_border", geom_names)
 
@@ -81,11 +81,11 @@ class TestSimIntegration(unittest.TestCase):
         self.assertAlmostEqual(w3, -4.2435, places=2)
 
         # Trường hợp 3: Tự xoay tại chỗ (vx = 0, vy = 0, omega = 3.2)
-        # w1 = w2 = w3 = R * omega * 35 = 0.055 * 3.2 * 35 = 6.16
+        # w1 = w2 = w3 = R * omega * 35 = 0.058 * 3.2 * 35 = 6.496
         w1, w2, w3 = compute_lekiwi_wheel_speeds(0.0, 0.0, 3.2)
-        self.assertAlmostEqual(w1, 6.16, places=2)
-        self.assertAlmostEqual(w2, 6.16, places=2)
-        self.assertAlmostEqual(w3, 6.16, places=2)
+        self.assertAlmostEqual(w1, 6.496, places=2)
+        self.assertAlmostEqual(w2, 6.496, places=2)
+        self.assertAlmostEqual(w3, 6.496, places=2)
 
     def test_03_ir_cliff_detection_and_table_containment(self):
         """Kiểm tra cơ chế 3 mắt hồng ngoại IR chống rơi mép bàn khi robot trượt."""

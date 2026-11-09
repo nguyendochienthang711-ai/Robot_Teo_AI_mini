@@ -474,11 +474,11 @@ class TestTeoToolsFullSuite(unittest.TestCase):
         xml_path = Path(__file__).parent / "teo_walle.xml"
         model = mujoco.MjModel.from_xml_path(str(xml_path))
         data = mujoco.MjData(model)
-        self.assertEqual(model.nu, 6)
+        self.assertEqual(model.nu, 5)
 
         state = {"motion": "slide_left", "bpm": 120, "end_time": time.time() + 2.0}
         teo_sim_runner.apply_motion_bundle(data, 0.5, state)
-        self.assertLess(data.ctrl[3], 0)
+        self.assertLess(data.ctrl[2], 0)
         mujoco.mj_step(model, data)
 
     # ==========================================================================

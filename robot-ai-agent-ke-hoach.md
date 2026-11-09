@@ -1,6 +1,6 @@
 # Kế hoạch dự án Robot AI trợ lý "Tèo" (ESP32-S3 + xiaozhi-esp32 + HP Victus 15)
 
-Cập nhật: 04/11/2026 (Bản chuẩn hóa sau khi kiểm chứng mô phỏng 3D MuJoCo, giải quyết chống lật cơ học, phân bổ trọng tâm CoM, hoàn thành 12 Tools & chuẩn GitHub Spec-Kit ANTIGRAVITY.md)
+Cập nhật: 07/11/2026 (đồng bộ hoàn chỉnh phần cứng/vỏ với **CAD v10**: kích thước $116 \times 120 \times 142\text{ mm}$, gầm $7.0\text{ mm}$, tâm bánh `Nexus 14108` $R = 58.0\text{ mm}$, ngàm khóa 5 servo bắt vít không keo, camera `ESP32-CAM OV3660`, khay điện tử `Pin-Up`, 11 file in `.stl`/`.step` đạt `0.00 mm³` va chạm & đã kiểm chứng động lực học MuJoCo — xem 5.2). Các mục phần mềm giữ nguyên bản 04/11/2026 (mô phỏng MuJoCo, 12 Tools, ANTIGRAVITY.md).
 
 > Giá, hạn mức miễn phí và tên model thay đổi rất nhanh. Mọi con số trong file này cần được đối chiếu với trang chính thức trước khi mua phần cứng hoặc nạp tiền API.
 
@@ -17,11 +17,11 @@ Cập nhật: 04/11/2026 (Bản chuẩn hóa sau khi kiểm chứng mô phỏng 
 | **LLM & Thị giác** | **DeepSeek** (dòng Flash — id `deepseek-flash` tích hợp sẵn cả xử lý văn bản và thị giác). |
 | **Giọng nói (TTS)** | **Piper VITS Offline** đã tinh chỉnh dấu tiếng Việt (3 phong cách: `chipmunk` sóc chuột, `diemdam` nam trầm điềm đạm, `tramvang` trầm vang — độ trễ siêu tốc ~60–120ms, tốn 0 đồng) + **Google TTS** tự động cho câu ngoại ngữ (`en`, `zh`, `ja`). |
 | **Vận hành nguồn** | Laptop **không cho ngủ khi cắm sạc, chỉ tắt màn hình** (mục 7, Hướng 1) kèm cơ chế giữ GPU nghỉ khi nhàn rỗi. Không cần chạy 24/7: nếu tắt laptop hẳn thì bật lại, khởi động dưới 5 phút là chấp nhận được. |
-| **Giữ lại** | Màn hình LCD, camera, 3 servo thân trên (cổ + 2 tay), cảm biến hiện diện (`HLK-LD2410C`), pin 2S 18650 (2 nhánh hạ áp độc lập), voiceprint (tích hợp trong model Wake Word của Edge Impulse), RAG. |
+| **Giữ lại** | Màn hình LCD, camera, 2 servo cánh tay (bỏ khớp cổ, tạo hình nguyên cục Unibody và dùng đế Omni tự xoay cả thân để đổi góc nhìn), cảm biến hiện diện (`HLK-LD2410C`), pin 2S 18650 (2 nhánh hạ áp độc lập), voiceprint (tích hợp trong model Wake Word của Edge Impulse), RAG. |
 | **Tính năng thêm** | Phát nhạc/YouTube kèm hook `pycaw` tự vặn nhỏ nhạc khi nói (6.7), tóm tắt và đọc to văn bản (6.6), đọc truyện (6.8), dịch thuật tự đổi giọng TTS (6.9), đung đưa/nhảy trượt ngang theo nhịp nhạc bằng cơ chế **Motion Bundle** (5.4), tự động hóa viết code kỹ năng mới bằng **`ANTIGRAVITY.md` & GitHub Spec-Kit SDD** (6.2). |
-| **Hình dáng & Đế di chuyển** | Chiều cao cỡ một lon Red Bull (~13,5 cm); phần thân trên kiểu **WALL-E** (thân hộp, đầu gắn cổ, hai tay) kết hợp **Đế tròn 3 bánh xe đa hướng (3-Wheel Omni / Kiwi Drive học từ `LeKiwi`, đường kính 10–12 cm)**. **Đã bỏ đế bánh xích và hướng nhiều chân.** Dùng duy nhất 1 module **PCA9685 (16 kênh PWM)** để cắm thẳng cả 3 Servo thân trên (`MG90S 180°`) lẫn 3 Servo bánh xe (`MG90S 360°`), **không cần mạch cầu H `DRV8833`**. **Đặc biệt bổ sung đệm chống lật đuôi (`omni_pad_tail` / bánh tỳ phụ)** và phân bổ **trọng tâm thấp (CoM $\le 3\text{ cm}$)** triệt tiêu lật ngửa khi vẫy tay hoặc phanh gấp. |
-| **Vỏ robot** | Chưa cần đẹp (hộp nhựa hoặc bìa carton cứng ở giai đoạn đầu). |
-| **Ưu tiên** | Tổng chi phí thấp nhất (phần cứng + phí API). |
+| **Hình dáng & Đế di chuyển** | Thiết kế **nguyên cục liền khối (Unibody Chunky Pod)** bo tròn đáng yêu ($116 \times 120 \times 142\text{ mm}$, đã bỏ khớp cổ), đỉnh đầu bo cong vòm mềm mại (dome 3D). Thân gắn liền với cụm 3 bánh xe đa hướng đôi **`Nexus 14108` $\varnothing 48 \times 25.5\text{ mm}$ bố trí kiểu LeKiwi** (2 bánh trước góc $\pm 60^\circ$, 1 bánh sau $180^\circ$ tại bán kính **$R = 58.0\text{ mm}$** kèm 2 đệm chống lật đuôi kép tại `(-42, ±36 mm)`). Dùng duy nhất 1 module **PCA9685 (16 kênh PWM)** điều khiển cả **2 Servo cánh tay (`MG90S 180°`)** lẫn **3 Servo bánh xe (`MG90S 360°`)** (tổng 5 servo khóa cứng bằng nẹp vít `teo_nep_giu_servo`, không dùng keo). Bên trong có **vách ngăn ngang tại $Z = 58.0\text{ mm}$** đỡ **Pack Pin 2S nguyên khối**, 2 mạch `MINI560` và 2 kẹp `CH-2`; tầng trên cùng là khay `Pin-Up` (`Z = 99 mm`) chứa `ESP32-S3` + `PCA9685` + kẹp ngắt nguồn nhanh `SM-2P` (bỏ công tắc vật lý `KCD11` và bỏ LED cằm `WS2812`). Tổng khối lượng $733.1\text{ g}$, $CoM_Z = 61.54\text{ mm}$, góc lật tĩnh $23.8^\circ / 25.9^\circ$ (đã pass 100% MuJoCo). |
+| **Vỏ robot & Kính mặt** | **In 3D toàn bộ thân vỏ và kính che mặt (11 file `.stl` + `.step` sinh từ `build_teo_cad.py`):** Gồm thân dưới + vách ngăn + thân trên ghép bằng 4 ốc lục giác chìm `M2.5 × 55 mm` từ đáy, **mũ đầu tháo bằng 4 cặp nam châm $\varnothing 6 \times 2\text{ mm}$**, khay điện tử thả đứng, nắp hộp loa kín khí, 2 cánh tay + 2 nắp chụp, 3 hub nối bánh `Nexus 14108`, và 5 thanh nẹp giữ servo; **Mặt kính che hốc màn hình in 3D SLA Clear Resin** ($70 \times 60 \times 1.8\text{ mm}$) phủ bóng khói Tamiya TS-71 giấu viền LCD `ST7789 2.0"`, chừa lỗ vát $45^\circ$ $\varnothing 6.5\text{ mm}$ cho `ESP32-CAM OV3660`. |
+| **Ưu tiên** | Cân bằng tối ưu giữa chi phí thấp và thẩm mỹ hoàn thiện cao cấp chuẩn robot AI để bàn. |
 
 Hệ quả: Bỏ failover cloud, mini server luôn bật và toàn bộ rắc rối về sleep/Wake-on-LAN. Laptop tắt hẳn thì robot không dùng được, và với cách dùng này thì hoàn toàn chấp nhận.
 
@@ -49,8 +49,8 @@ Tài liệu gốc (kiến trúc hybrid edge-cloud) có ý tưởng tốt nhưng 
  ├─ Kích hoạt: Model "Ê Tèo" (Edge Impulse) + Chạm TTP223                     ├─ Kích hoạt phụ: Phím tắt bàn phím / Auto-VAD (0.7s)
  ├─ Hiển thị & Cảm biến: LCD ST7789, LED WS2812, HLK-LD2410C                  ├─ ASR: Google ASR / Groq Whisper | faster-whisper GPU
  ├─ Điều khiển xung I2C: Module PCA9685 (16 kênh PWM)                         ├─ LLM & Vision: DeepSeek API (deepseek-flash + Suffix Cache)
- │   ├─ Kênh 0..2: 3 Micro Servo MG90S 180° (Cổ + 2 Tay) (Bộ lọc alpha=0.15) ├─ TTS: Piper VITS Offline (3 giọng) + GoogleTTS
- │   ├─ Kênh 3..5: 3 Servo MG90S 360° ──► Đế 3 bánh Omni (120°)               ├─ Audio Hook: pycaw (tự hạ nhạc trình duyệt khi nghe)
+ │   ├─ Kênh 0..1: 2 Micro Servo MG90S 180° (2 Cánh tay - Bỏ servo cổ)         ├─ TTS: Piper VITS Offline (3 giọng) + GoogleTTS
+ │   ├─ Kênh 3..5: 3 Servo MG90S 360° ──► 3 bánh Omni 48mm gắn liền gầm thân     ├─ Audio Hook: pycaw (tự hạ nhạc trình duyệt khi nghe)
  │   └─ Motion Bundles: wave, happy_dance, slide_left/right, circle_strafe    ├─ 12 Tools Cốt lõi: Kiwi Sim, Doc, Pomodoro, Memory, Web...
  ├─ Chống lật & rơi: 3 mắt hồng ngoại IR + Đệm chống lật đuôi (omni_pad_tail) └─ Quy chuẩn AI Coding: ANTIGRAVITY.md (GitHub Spec-Kit SDD)
  └─ Nguồn: Pin 2S 18650 + BMS (đặt sát đáy CoM <= 3cm) ──► 2 Buck MINI560 5V
@@ -104,8 +104,8 @@ Tài liệu gốc (kiến trúc hybrid edge-cloud) có ý tưởng tốt nhưng 
 **Phần mở rộng thân trên — Giai đoạn Bước 3 đến Bước 8 (khoảng 0,5–0,85 triệu đồng):**
 * 1 $\times$ Màn hình **LCD SPI ST7789** (kích thước 1.54"–2.4", độ phân giải $240\times 240$ hoặc $240\times 320$ hiển thị đôi mắt hoạt hình của Tèo).
 * 1 $\times$ Module camera độc lập: **XIAO ESP32S3 Sense** ($2,1 \times 1,8\text{ cm}$) hoặc **ESP32-S3-CAM (OV2640)**.
-* 3 $\times$ Micro Servo **MG90S (loại góc 180 độ, bánh răng kim loại)** cho cổ và 2 tay.
-* 1 $\times$ Module điều khiển xung I2C **PCA9685 (16 kênh PWM)**: Chỉ tốn 2 chân I2C của ESP32-S3 nhưng điều khiển trực tiếp cả **3 Servo thân trên (`MG90S 180°`)** lẫn **3 Servo bánh xe Omni (`MG90S 360°`)**.
+* 2 $\times$ Micro Servo **MG90S (loại góc 180 độ, bánh răng kim loại)** cho 2 cánh tay (đã bỏ servo cổ để làm thân nguyên cục unibody, robot xoay hướng nhìn bằng cách xoay cả thân qua 3 bánh xe Omni).
+* 1 $\times$ Module điều khiển xung I2C **PCA9685 (16 kênh PWM)**: Chỉ tốn 2 chân I2C của ESP32-S3 nhưng điều khiển trực tiếp cả **2 Servo cánh tay (`MG90S 180°`)** lẫn **3 Servo bánh xe Omni (`MG90S 360°`)** (tổng 5 servo, giảm 1 servo cổ).
 * 1 $\times$ Cảm biến hiện diện mmWave **HLK-LD2410C** (*Lưu ý bắt buộc:* Chọn đúng bản **LD2410C** có chân kim chuẩn **2.54mm** cắm vừa dây Dupont; tránh mua bản LD2410B chân 1.27mm).
 * 1 $\times$ Vòng LED **WS2812** (tùy chọn).
 * **Hệ thống Pin tách 2 nhánh (Làm ở Bước 8):** 2 cell pin **18650 chính hãng nối tiếp (2S = 7.4V–8.4V)** + mạch bảo vệ sạc xả **BMS 2S** + **2 mạch hạ áp Buck MINI560 5V** (1 mạch cấp riêng đường 5V "Sạch" cho ESP32/Loa/Mic/LCD; 1 mạch cấp riêng đường 5V "Cơ bắp" cho chân `V+` của PCA9685 nuôi 6 Servo).
@@ -113,7 +113,7 @@ Tài liệu gốc (kiến trúc hybrid edge-cloud) có ý tưởng tốt nhưng 
 **Đế 3 bánh xe đa hướng (3-Wheel Omni / Kiwi Drive học từ `LeKiwi`) — Giai đoạn Bước 9 (khoảng 0,25–0,4 triệu đồng):**
 * 3 $\times$ **Bánh xe đa hướng Omni Mini** (đường kính 48mm hoặc 58mm, có các con lăn phụ vuông góc trên vành bánh).
 * 3 $\times$ **Micro Servo MG90S loại quay liên tục 360 độ (`MG90S 360° Continuous Rotation`)** (~28.000đ/cái): Gắn trực tiếp vào 3 bánh xe Omni đặt lệch nhau góc đều **$120^\circ$**. Vì bản thân Servo 360° đã tích hợp sẵn mạch điều khiển tốc độ và chiều quay bên trong, bạn chỉ cần **cắm thẳng giắc 3 dây của chúng vào kênh 3, 4, 5 trên mạch `PCA9685`** mà **không cần mua mạch cầu H `DRV8833`/`TB6612`**. *(Tùy chọn: Nếu muốn dùng 3 mô tơ giảm tốc kim loại `N20` thì mua kèm 2 mạch `DRV8833` cắm vào 6 kênh PWM trống của `PCA9685`).*
-* 1 $\times$ **Đệm chống lật / Con lăn phụ đuôi xe (Anti-tip Tail Pad / Mini Felt Pad / Ball Caster)** (~5.000–10.000đ): Gắn dưới gầm phía sau tấm đế tại tọa độ $x = -4.5\text{ cm}$, bán kính tiếp xúc ~6mm. Có tác dụng mở rộng đa giác tiếp xúc mặt bàn thành tứ giác hình thoi, chống lật ngửa tuyệt đối khi giơ 2 tay hoặc phanh giật lùi.
+* 1 $\times$ **Đệm chống lật / Con lăn phụ đuôi xe (Anti-tip Tail Pad / Mini Felt Pad / Ball Caster)** (~5.000–10.000đ): Gắn dưới gầm phía sau tấm đế tại tọa độ $x = -4.5\text{ cm}$, bán kính tiếp xúc ~6mm. *(⚠ CAD v9 chưa dựng được đệm này: sàn dưới bánh sau bị hốc bánh cắt qua; cần thiết kế lại.)* Có tác dụng mở rộng đa giác tiếp xúc mặt bàn thành tứ giác hình thoi, chống lật ngửa tuyệt đối khi giơ 2 tay hoặc phanh giật lùi.
 * 3 $\times$ Cảm biến hồng ngoại tránh rơi mép bàn (**IR Obstacle Sensor** hướng xuống gầm, đặt xen kẽ ở 3 góc của đế tam giác/tròn để trượt ngang hướng nào cũng phanh kịp).
 * 1 $\times$ Tấm đế tròn hoặc lục giác (đường kính **10–12 cm**, cắt tấm nhựa Mica/bìa cứng hoặc in 3D) để bắt 3 cụm bánh xe lệch góc $120^\circ$ và điểm tỳ chống lật đuôi.
 
@@ -121,12 +121,13 @@ Tổng dự kiến khoảng **1,0–1,7 triệu đồng** cho toàn bộ lộ tr
 
 ### 5.2. Lưu ý kỹ thuật, Chống nhiễu & Cân bằng động lực học
 
-* **Quản lý chân GPIO trên ESP32-S3 N16R8:** Màn hình SPI ~6 chân, mic I2S 3, ampli I2S 3, chạm TTP223 1, I2C PCA9685 2 (gánh toàn bộ 3 servo thân trên + 3 servo bánh xe Omni), LD2410C 1, chống rơi IR 3, đo pin ADC 1 $\rightarrow$ tổng cộng **20 chân**, nằm gọn trong giới hạn an toàn của board. Tuyệt đối **không dùng GPIO 35–37** (dành cho Octal PSRAM) và các chân strapping (GPIO 0, 3, 45, 46).
-* **Cách ly nhiễu nguồn bằng 2 mạch hạ áp MINI560 5V:** Tách 2 nhánh hạ áp 5V độc lập từ nguồn Pin 2S (7.4V–8.4V), nối chung mass (GND), giúp đường 5V nuôi ESP32 và Ampli loa phẳng tuyệt đối ngay cả khi cả 6 con servo (3 thân trên + 3 bánh xe Omni) khởi động cùng lúc.
-* **Quy tắc phân bổ trọng tâm CoM (Center of Mass) thấp $\le 3\text{ cm}$:**
+* **Quản lý chân GPIO trên ESP32-S3 N16R8:** Màn hình SPI ~6 chân, mic I2S 3, ampli I2S 3, chạm TTP223 1, I2C PCA9685 2 (gánh toàn bộ 2 servo cánh tay + 3 servo bánh xe Omni), LD2410C 1, chống rơi IR 3, đo pin ADC 1 $\rightarrow$ tổng cộng **20 chân**, nằm gọn trong giới hạn an toàn của board. Tuyệt đối **không dùng GPIO 35–37** (dành cho Octal PSRAM) và các chân strapping (GPIO 0, 3, 45, 46).
+* **Cách ly nhiễu nguồn bằng 2 mạch hạ áp MINI560 5V:** Tách 2 nhánh hạ áp 5V độc lập từ nguồn Pin 2S (7.4V–8.4V), nối chung mass (GND), giúp đường 5V nuôi ESP32 và Ampli loa phẳng tuyệt đối ngay cả khi cả 5 con servo (2 cánh tay + 3 bánh xe Omni) khởi động cùng lúc.
+* **✅ Cập nhật 07/11/2026 — Đã hoàn thiện & kiểm chứng CAD v10 + MuJoCo:** Phiên bản **CAD v10** ($116 \times 120 \times 142\text{ mm}$, khoảng sáng gầm $7.0\text{ mm}$, bán kính bánh `Nexus 14108` $R = 58.0\text{ mm}$) đã giải quyết triệt để mọi giao cắt nội thất (`0.00 mm³` trên toàn bộ 19 chi tiết in và 27 khối linh kiện/đầu cắm Dupont). Nhờ cụm 3 bánh đôi `Nexus 14108` nặng $117\text{ g}$ ở $Z = 24\text{ mm}$ và mở rộng $R_{\text{wheel}}$ lên $58.0\text{ mm}$ kèm 2 đệm chống lật đuôi kép tại `(-42, ±36 mm)`, tổng khối lượng robot đạt **$733.1\text{ g}$**, **$CoM_Z = 61.54\text{ mm}$**, góc lật tĩnh đạt **$23.8^\circ$ (trước) / $25.9^\circ$ (hông)**. Mô phỏng động lực học `teo_walle.xml` trên MuJoCo đã vượt qua toàn bộ 15 bài test chuyển động & phanh khẩn cấp (`max_tilt ≤ 0.71°`) và 24/24 unit & integration tests. Hai khối "Quy tắc" và "Giải pháp thực nghiệm" ngay dưới là **bản v1.0 (04/11/2026), giữ lại để đối chiếu**.
+* **Quy tắc phân bổ trọng tâm CoM (Center of Mass) thấp $\le 3\text{ cm}$ (bản v1.0, 04/11/2026):**
   * Chiều cao robot khoảng 13,5 cm. Nếu để pin 18650 hoặc linh kiện nặng trên ngực/đầu, trọng tâm sẽ bị đẩy lên cao ($7–8\text{ cm}$), làm góc nghiêng tới hạn lật ngửa giảm xuống dưới $19^\circ$, chỉ cần cử động tay nhanh là đổ.
   * *Giải pháp thực nghiệm (đã kiểm chứng qua MuJoCo):* Toàn bộ phần nặng nhất gồm 2 cell pin 18650 (~95g), 3 Servo kim loại MG90S 360° bánh xe (~40g), module PCA9685 và 2 mạch hạ áp MINI560 **phải được đặt ép sát tấm sàn đế ($z \le 2\text{ cm}$)**.
-  * Thân trên (hộp ngực, cổ, 2 tay, màn hình ST7789, camera) in 3D với mật độ Infill 15–20%, khống chế khối lượng thân trên $\le 100\text{g}$.
+  * Thân trên unibody (hộp thân, 2 tay, màn hình ST7789, camera) in 3D với mật độ Infill 15–20%, khống chế khối lượng thân trên $\le 100\text{g}$.
   * Nhờ đó, trọng tâm tổng thể ($CoM$) luôn nằm ở độ cao $\le 3\text{ cm}$ so với mặt bàn $\rightarrow$ Góc nghiêng tới hạn lật ngửa đạt **$> 37^\circ$**, giúp Tèo đứng vững chãi tuyệt đối.
 * **Bộ lọc làm mượt xung điều khiển Servo (Exponential Smoothing / Slew Rate Limiter):**
   * Khi AI ra lệnh cử chỉ (ví dụ vẫy tay từ $0^\circ \to -51^\circ$), nếu xuất lệnh tức thời dạng bậc thang (step command), gia tốc góc cực lớn ($180\text{ rad/s}^2$) sẽ sinh mô-men phản lực pitch hất ngược thân robot về phía sau gây giật nảy.
@@ -237,13 +238,13 @@ teo_sim_AI/
 | **1** | Hoàn thiện bộ công cụ Thư ký trên Laptop (Đọc/Tóm tắt PDF `doc_reader.py`, Clipboard, Chụp màn hình Vision, Pomodoro, SQLite Long-term Memory, DuckDuckGo Search), xây dựng & kiểm chứng mô phỏng 3D `MuJoCo` (Kiwi Drive + đệm chống lật đuôi `omni_pad_tail`) và thiết lập đặc tả chuẩn **`ANTIGRAVITY.md`** (GitHub Spec-Kit). | **ĐÃ HOÀN THÀNH (100% - 0 đồng)** |
 | **2** | Mua bộ tối thiểu (ESP32-S3 N16R8, INMP441, MAX98357A + loa 3W, cảm biến chạm TTP223, breadboard, dây Dupont). Ghép mạch, nạp firmware `.bin` test qua Wi-Fi LAN; thu âm trên **Edge Impulse** và nạp bản nhận từ khóa **`"Ê Tèo"`**. | **Sẵn sàng thực hiện (~0,25–0,45 triệu)** |
 | **3** | Thêm màn hình LCD ST7789 hiển thị hai mắt hoạt hình. Cấu hình hoàn chỉnh nguồn laptop không ngủ khi cắm sạc và Task Scheduler tự chạy server. | **~0,1–0,15 triệu** |
-| **4** | Lắp module I2C `PCA9685` + 3 micro servo `MG90S 180°` (đầu + 2 tay) + vòng LED `WS2812`; nạp các gói cử chỉ mượt **Motion Bundle** (`wave_greeting`, `nod_yes`, `happy_dance`). | **~0,15–0,2 triệu** |
+| **4** | Lắp module I2C `PCA9685` + 2 micro servo `MG90S 180°` (2 cánh tay, đã bỏ servo cổ) + vòng LED `WS2812`; nạp các gói cử chỉ mượt **Motion Bundle** (`wave_greeting`, `happy_dance`). | **~0,12–0,18 triệu** |
 | **5** | Gắn cảm biến hiện diện `HLK-LD2410C` (chân 2.54mm) + tính năng tự mở mắt chào và đọc Bản tin buổi sáng khi chủ nhân ngồi vào bàn. | **~0,08–0,12 triệu** |
 | **6** | Lắp module camera riêng (`XIAO ESP32S3 Sense` / `ESP32-S3-CAM`) + kết nối vào tool `nhin_qua_camera_teo()`. | **~0,2–0,35 triệu** |
 | **7** | Mở khóa các tool có thể ghi/hành động trên laptop (Mở Workspace ứng dụng, Dọn file Downloads, Khóa/Tắt máy có xác nhận giọng nói). | **0 đồng** |
-| **8** | Lắp hệ thống Pin 2S 18650 + BMS 2S + **2 mạch hạ áp MINI560 5V tách độc lập** nhánh Logic/Audio và nhánh 6 Servo trên `PCA9685`. Bố trí sát đáy gầm đạt $CoM \le 3\text{ cm}$. | **~0,18–0,3 triệu** |
-| **9** | **Lắp Đế 3 bánh xe đa hướng (3-Wheel Omni / Kiwi Drive kiểu `LeKiwi`, đường kính 10–12 cm):** Gắn 3 bánh Omni (48mm/58mm) vào **3 Servo `MG90S 360°`** cắm thẳng vào kênh 3, 4, 5 trên `PCA9685` + 3 cảm biến IR chống rơi mép bàn + **1 đệm chống lật đuôi (`omni_pad_tail`)**. | **~0,25–0,4 triệu** |
-| **10** | Tùy chọn: Hoàn thiện vỏ hộp đẹp hơn, kết nối Telegram Bot, trợ lý ghi âm tóm tắt họp, Home Assistant. | **Tùy chọn** |
+| **8** | Lắp hệ thống **Pack Pin 2S 7.4V 18650 (2000–2600mAh bọc màng co sẵn Jack SM-2P & BMS)** + Module sạc Type-C IP2326 (kết nối không hàn qua kẹp CH-2) + **2 mạch hạ áp MINI560 5V hàn sẵn rào chân** đặt trên vách ngăn `teo_vach_ngan`, giắc `SM-2P` đưa lên kẹp ngắt nguồn nhanh dưới mũ đầu nam châm (bỏ công tắc `KCD11`). | **~0,18–0,3 triệu** |
+| **9** | **Lắp Cụm 3 bánh xe đa hướng (`Nexus 14108` $\varnothing 48 \times 25.5\text{ mm}$ kiểu `LeKiwi`, $R = 58\text{ mm}$):** Gắn 3 bánh qua 3 hub in 3D `teo_hub_banh_omni` vào **3 Servo `MG90S 360°`** khóa bằng nẹp vít `teo_nep_giu_servo` (2 bánh trước $\pm 60^\circ$, 1 bánh sau $180^\circ$) + 3 cảm biến IR chống rơi đối xứng $120^\circ$ + 2 đệm nỉ chống lật đuôi. | **~0,25–0,4 triệu** |
+| **10** | **In 3D Thân vỏ Unibody CAD v10 & Kính cong SLA:** In 11 file `.step`/`.stl` (19 chi tiết: thân dưới, vách ngăn, thân trên, khay linh kiện `Pin-Up`, mũ đầu nam châm, kính SLA, nắp hộp loa, tay ×2, nắp chụp tay ×2, hub bánh Omni ×3, nẹp giữ servo ×5), xem `thong-so-thiet-ke-vo-robot-teo.md`. | **~0,2–0,35 triệu** |
 
 ---
 
@@ -267,6 +268,8 @@ teo_sim_AI/
 * [x] **Nghiên cứu `SIGRobotics-UIUC/LeKiwi` & `Ekumen-OS/lekiwi`:** Đã chốt chuyển từ Đế bánh xích sang **Đế 3 bánh Omni (Kiwi Drive)** dùng 3 Servo `MG90S 360°` cắm thẳng vào `PCA9685` (bỏ mạch cầu H `DRV8833` và không cần mua Raspberry Pi 5).
 * [x] **Hoàn thiện các Tool Đợt 1 & Đợt 2 trên Laptop:** Hoàn thành 100% 12 công cụ cốt lõi (Kiwi Drive 3D Sim, Motion Bundle, Doc Bookmark, Clipboard `Ctrl+C`, Chụp màn hình Vision, Pomodoro, SQLite Long-term Memory, DuckDuckGo Search) với 24/24 unit tests & integration tests pass.
 * [x] **Chuẩn hóa Agent theo GitHub Spec-Kit SDD (`ANTIGRAVITY.md`):** Đã thay thế `AGENTS.md` bằng tài liệu đặc tả `ANTIGRAVITY.md` chuẩn quốc tế, tích hợp cơ chế bảo mật HMAC-SHA256 và quy chuẩn kiểm thử tự động.
+* [x] **Hoàn thiện CAD v10 (`build_teo_cad.py`) & Chạy kiểm chứng MuJoCo (07/11/2026):** Đã dựng mới tham số hóa 11 file `.step`/`.stl` (`116 × 120 × 142 mm`, $R_{\text{wheel}} = 58.0\text{ mm}$, bánh đôi `Nexus 14108`, camera `ESP32-CAM OV3660`, nẹp vít 5 servo không keo, kiểm định Boolean `0.00 mm³` giao cắt), đồng bộ `teo_walle.xml` + `teo_sim_runner.py` và vượt qua 100% bài test động lực học & 24/24 unit/integration tests.
+* [ ] **In thử đồ gá nhanh trước khi in nguyên bộ vỏ lớn:** In trước 1 `teo_hub_banh_omni` + 1 `teo_nep_giu_servo` để ướm thử độ khít với sừng chữ thập `MG90S` và lỗ trục $\varnothing 13.9\text{ mm}$ của bánh `Nexus 14108` trên máy in thực tế, sau đó tiến hành in toàn bộ thân vỏ trong OrcaSlicer.
 * [ ] **Kiểm tra thực tế ở Bước 2 & Bước 9:** Thu âm model `"Ê Tèo"` trên Edge Impulse và ráp thử nghiệm mạch ESP32-S3 cùng đế 3 bánh xe Omni kèm đệm chống lật đuôi trên mặt bàn làm việc thật.
 
 ---

@@ -12,8 +12,8 @@ from tools.guardrails import sign_wifi_packet, verify_wifi_packet
 UDP_IP = "127.0.0.1"
 UDP_PORT = 5555
 
-# Bán kính đế tròn 3 bánh Omni Kiwi Drive (55mm = 0.055m)
-BASE_RADIUS = 0.055
+# Bán kính tâm bánh xe 3 bánh Omni LeKiwi CAD v10 (58mm = 0.058m)
+BASE_RADIUS = 0.058
 WHEEL_SCALE = 35.0
 SAFE_TABLE_RADIUS = 0.42
 
@@ -138,20 +138,24 @@ def apply_motion_bundle(data, t: float, state: dict):
         omega_rot = 3.2
         l_arm, r_arm = -0.7, -0.7
 
+    # Unibody Pod (bỏ servo cổ): chuyển biểu cảm xoay cổ sang xoay thân Holonomic trên đế Omni
+    if neck != 0.0 and omega_rot == 0.0:
+        omega_rot = neck * 2.2
+
     # Tính tốc độ 3 bánh xe Omni theo công thức LeKiwi
     w1, w2, w3 = compute_lekiwi_wheel_speeds(vx, vy, omega_rot)
 
-    # Mượt hóa góc servo (Rate limiting) tránh sốc xung cơ khí làm robot giật nảy
-    smoothed = state.setdefault("smoothed_ctrl", [0.0, 0.0, 0.0])
-    target_ctrl = [neck, l_arm, r_arm]
-    for i in range(3):
+    # Mượt hóa góc 2 servo cánh tay (Rate limiting) tránh sốc xung cơ khí làm robot giật nảy
+    smoothed = state.setdefault("smoothed_ctrl", [0.0, 0.0])
+    target_ctrl = [l_arm, r_arm]
+    for i in range(2):
         smoothed[i] += (target_ctrl[i] - smoothed[i]) * 0.15
         data.ctrl[i] = smoothed[i]
 
-    # Ghi tốc độ 3 bánh xe Omni vào ctrl
-    data.ctrl[3] = w1
-    data.ctrl[4] = w2
-    data.ctrl[5] = w3
+    # Ghi tốc độ 3 bánh xe Omni vào ctrl[2..4] (5 kênh vật lý trên Unibody CAD v10)
+    data.ctrl[2] = w1
+    data.ctrl[3] = w2
+    data.ctrl[4] = w3
 
     # Giữ thăng bằng và triệt tiêu dao động lắc lư (Roll & Pitch Damping)
     data.qvel[3] *= 0.85
