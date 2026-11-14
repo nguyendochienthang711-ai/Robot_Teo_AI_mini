@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import re
 import threading
@@ -33,10 +34,12 @@ from tools.guardrails import (
     get_pending_action,
     sanitize_output_guardrail,
 )
+from tools.policy import TOOL_SPECS, risk_of
 
 log = logging.getLogger("teo.brain")
 
 SENT_RE = re.compile(r"(?<![.\d])([.!?])(?![.\d])\s+")
+_ABBREV_TAIL_RE = re.compile(r"(?:^|\s)(?:tp|ts|gs|bs|ks|mr|dr|ms|st|ths|pgs|q|p)\.$", re.I)
 _SYS_TIME_PREFIX_RE = re.compile(r"^\[Giờ hệ thống:[^\]]+\]\s*")
 
 TOOL_TIMEOUT: dict[str, float] = {
@@ -154,12 +157,19 @@ async def stream_llm_and_speak(
     async def _emit_sentences_from_buf(buf: str, first_emitted: bool, label: str) -> tuple[str, bool]:
         """Extract all completed sentences from buffer and enqueue for TTS (R-06)."""
         nonlocal ttft_recorded_ms
+        search_pos = 0
         while True:
-            m = SENT_RE.search(buf)
-            if not m or len(buf[: m.end()].strip()) < 6:
+            m = SENT_RE.search(buf, search_pos)
+            if not m:
+                break
+            if m.group(1) == "." and _ABBREV_TAIL_RE.search(buf[: m.start() + 1].strip()):
+                search_pos = m.end()
+                continue
+            if len(buf[: m.end()].strip()) < 6:
                 break
             sent = buf[: m.end()].strip()
             buf = buf[m.end() :]
+            search_pos = 0
             if not first_emitted:
                 first_emitted = True
                 llm_first_ms = (time.perf_counter() - t_turn) * 1000
@@ -170,7 +180,7 @@ async def stream_llm_and_speak(
         return buf, first_emitted
 
     async def llm_producer():
-        nonlocal turn_succeeded
+        nonlocal turn_succeeded, ttft_recorded_ms
         client = get_llm_client()
         try:
             # 1. Handle Input Guardrail rejection fast-path
@@ -222,15 +232,18 @@ async def stream_llm_and_speak(
                                 res.commit()
                             except Exception:
                                 log.exception("Commit callback error")
-                        working_history.append(
-                            {
-                                "role": "user",
-                                "content": (
-                                    f"[Sếp đã xác nhận ĐỒNG Ý cho phép {pending.description_vi}. "
-                                    f"Kết quả thực thi công cụ {pending.func_name}]: {res.text}"
-                                ),
-                            }
+                        confirm_ctx_msg = (
+                            f"[Sếp đã xác nhận ĐỒNG Ý cho phép {pending.description_vi}. "
+                            f"Kết quả thực thi công cụ {pending.func_name}]: {res.text}"
                         )
+                        if working_history and working_history[-1].get("role") == "user":
+                            working_history[-1]["content"] = (
+                                f"{working_history[-1]['content']}\n{confirm_ctx_msg}"
+                            )
+                        else:
+                            working_history.append({"role": "user", "content": confirm_ctx_msg})
+                else:
+                    clear_pending_action()
 
             # 3. Normal LLM streaming + multi-round tool loop
             for round_idx in range(MAX_TOOL_ROUNDS + 1):
@@ -283,6 +296,8 @@ async def stream_llm_and_speak(
                     sent = buf.strip()
                     if not first_sent_emitted:
                         llm_first_ms = (time.perf_counter() - t_turn) * 1000
+                        if ttft_recorded_ms == 0.0:
+                            ttft_recorded_ms = round(llm_first_ms, 1)
                         print(f"🧠 [DeepSeek Stream Câu 1 ({llm_first_ms:.0f} ms)]: \"{sanitize_output_guardrail(sent)}\"")
                     await _enqueue_safe_sentence(sent)
                     buf = ""
@@ -305,7 +320,7 @@ async def stream_llm_and_speak(
                 working_history.append(assistant_tc_msg)
                 full_reply_parts.clear()
 
-                for v in tool_calls_acc.values():
+                async def _exec_one_tc(v: dict) -> tuple[dict, ToolResult]:
                     t_name = v["name"]
                     t_args = v["args"]
                     timeout_sec = TOOL_TIMEOUT.get(t_name, DEFAULT_TOOL_TIMEOUT)
@@ -324,7 +339,37 @@ async def stream_llm_and_speak(
                             text=f"ERROR tool_timeout: {t_name} timed out after {timeout_sec}s.",
                             ok=False,
                         )
+                    return v, res
 
+                tc_list = list(tool_calls_acc.values())
+                can_parallel = False
+                if len(tc_list) > 1:
+                    has_untrusted = any(
+                        (spec := TOOL_SPECS.get(tc["name"])) is not None and spec.untrusted_output
+                        for tc in tc_list
+                    )
+                    has_side_effect = False
+                    for tc in tc_list:
+                        try:
+                            parsed = json.loads(tc["args"]) if tc["args"] else {}
+                            if not isinstance(parsed, dict):
+                                parsed = {}
+                        except Exception:
+                            parsed = {}
+                        if risk_of(tc["name"], parsed) in ("write", "destructive", "physical"):
+                            has_side_effect = True
+                            break
+                    can_parallel = not (has_untrusted and has_side_effect)
+
+                if can_parallel:
+                    executed_pairs = await asyncio.gather(*(_exec_one_tc(v) for v in tc_list))
+                else:
+                    executed_pairs = []
+                    for v in tc_list:
+                        executed_pairs.append(await _exec_one_tc(v))
+
+                for v, res in executed_pairs:
+                    t_name = v["name"]
                     tool_calls_log.append(
                         {
                             "name": t_name,
@@ -397,7 +442,16 @@ async def stream_llm_and_speak(
                 )
             print(f"   🤖 [Tèo nói câu {idx} ({tts_ms:.0f} ms | {voice_used})]: {speak_item.text}")
 
-            await asyncio.to_thread(play_audio_bytes_sync, audio_bytes, _abort_speaking)
+            if speak_item.priority != PRIO_SPEECH:
+                await asyncio.to_thread(
+                    play_audio_bytes_sync,
+                    audio_bytes,
+                    _abort_speaking,
+                    speak_item.priority,
+                    "doc_reader",
+                )
+            else:
+                await asyncio.to_thread(play_audio_bytes_sync, audio_bytes, _abort_speaking)
 
             if speak_item.on_done and not _abort_speaking.is_set():
                 try:

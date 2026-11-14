@@ -237,7 +237,76 @@ class TestTeoAgentHarness(unittest.TestCase):
         self.assertEqual(res_turn_3["injectSteps"], [])
         res_turn_10 = hook_mod.handle_post_invocation({"conversationId": "test_conv", "invocationNum": 10})
         self.assertEqual(res_turn_10["injectSteps"], [])
-        self.assertEqual( hook_mod.run_periodic_invariants_check(), [])
+        self.assertEqual(hook_mod.run_periodic_invariants_check(), [])
+
+    def test_08_package1_agent_optimizations_and_fixes(self):
+        """Verify Package 1 upgrades: Smart Top-K memory, tainted memory tagging, abbrev sentence split, and run_command .env hook."""
+        import importlib.util
+        from brain import SENT_RE, _ABBREV_TAIL_RE
+        from tools.common import load_json
+        from tools.dispatcher import run_tool
+        from tools.policy import TurnContext
+
+        # 1. Smart Top-K Memory Retrieval selects relevant older memory beyond last 4
+        memories_seed = [
+            {"key": "Phòng lab AI", "value": "P.402 nhà A1", "source": "user"},
+            {"key": "Quán cà phê", "value": "Highlands tầng 1", "source": "user"},
+            {"key": "Mật khẩu wifi", "value": "KhongCoMatKhau", "source": "user"},
+            {"key": "Thầy hướng dẫn", "value": "Thầy Minh khoa CNTT", "source": "user"},
+            {"key": "Lịch họp nhóm", "value": "Thứ 5 lúc 14h", "source": "user"},
+            {"key": "Sở thích", "value": "Nhạc Lofi không lời", "source": "user"},
+        ]
+        save_json(config.MEMORY_FILE, memories_seed)
+        msg_top_k = build_dynamic_user_message("Hôm nay anh học phòng lab AI ở đâu?", now_str="09:00 ngày 14/11/2026")
+        self.assertIn("Phòng lab AI=P.402 nhà A1", msg_top_k)
+
+        # 2. Tainted memory source tagging: tainted turns store source="tainted_turn" and are excluded from suffix
+        config.MEMORY_FILE.unlink(missing_ok=True)
+        run_tool(
+            "ghi_nho_thong_tin_dai_han",
+            json.dumps({"thao_tac": "luu", "khoa": "Ghi chú sạch", "noi_dung": "Dữ liệu an toàn"}),
+            ctx=TurnContext(tainted=False),
+        )
+        run_tool(
+            "ghi_nho_thong_tin_dai_han",
+            json.dumps({"thao_tac": "luu", "khoa": "Ghi chú web", "noi_dung": "Dữ liệu từ web"}),
+            ctx=TurnContext(tainted=True, confirmed=True),
+        )
+        saved_mems = load_json(config.MEMORY_FILE, [])
+        by_key = {m["key"]: m for m in saved_mems}
+        self.assertEqual(by_key["Ghi chú sạch"]["source"], "user")
+        self.assertEqual(by_key["Ghi chú web"]["source"], "tainted_turn")
+
+        msg_clean_only = build_dynamic_user_message("Kiểm tra ghi chú")
+        self.assertIn("Ghi chú sạch=Dữ liệu an toàn", msg_clean_only)
+        self.assertNotIn("Ghi chú web", msg_clean_only)
+
+        # 3. Abbreviation-safe sentence splitting does not split on 'P.' or 'TP.'
+        sample = "Phòng học P. 402 nhà A1 tại TP. Hồ Chí Minh rất rộng. Mời sếp đến đúng giờ."
+        search_pos = 0
+        split_at = None
+        while True:
+            m = SENT_RE.search(sample, search_pos)
+            self.assertIsNotNone(m)
+            if m.group(1) == "." and _ABBREV_TAIL_RE.search(sample[: m.start() + 1].strip()):
+                search_pos = m.end()
+                continue
+            split_at = m.end()
+            break
+        first_sentence = sample[:split_at].strip()
+        self.assertEqual(first_sentence, "Phòng học P. 402 nhà A1 tại TP. Hồ Chí Minh rất rộng.")
+
+        # 4. Hook guard blocks shell commands accessing .env while allowing .env.example
+        root = Path(__file__).resolve().parent
+        hook_path = root / ".agents" / "scripts" / "hook_guard.py"
+        spec = importlib.util.spec_from_file_location("hook_guard_pkg1", str(hook_path))
+        hook_mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(hook_mod)
+
+        deny_cmd = hook_mod.handle_pre_tool({"toolCall": {"name": "run_command", "args": {"CommandLine": "Get-Content .env"}}})
+        self.assertEqual(deny_cmd["decision"], "deny")
+        allow_cmd = hook_mod.handle_pre_tool({"toolCall": {"name": "run_command", "args": {"CommandLine": "Get-Content .env.example"}}})
+        self.assertEqual(allow_cmd["decision"], "allow")
 
 
 if __name__ == "__main__":

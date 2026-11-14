@@ -150,8 +150,13 @@ def clean_for_tts(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
-def record_with_auto_vad(filename: str | None = None, silence_limit_sec: float = 0.7, max_sec: float = 15.0):
-    """Thu âm tự động ngắt khi sếp dừng nói 0.7 giây (lưu file tạm trong CACHE_DIR - R-20)."""
+def record_with_auto_vad(
+    filename: str | None = None,
+    silence_limit_sec: float = 0.7,
+    max_sec: float = 15.0,
+    initial_silence_timeout_sec: float = 4.0,
+):
+    """Thu âm tự động ngắt khi sếp dừng nói 0.7 giây hoặc im lặng quá lâu lúc đầu (lưu file tạm trong CACHE_DIR - R-20)."""
     if filename is None:
         filename = str(config.CACHE_DIR / "mic_input.wav")
     print("\n🎙️ [ĐANG NGHE... Sếp cứ nói tự nhiên, ngừng nói 0.7 giây là Tèo tự trả lời!]")
@@ -164,8 +169,10 @@ def record_with_auto_vad(filename: str | None = None, silence_limit_sec: float =
     frames = []
     has_spoken = False
     silent_chunks = 0
+    initial_silent_chunks = 0
     max_silent_chunks = int(silence_limit_sec / CHUNK_DURATION)
     max_total_chunks = int(max_sec / CHUNK_DURATION)
+    max_initial_silent_chunks = int(initial_silence_timeout_sec / CHUNK_DURATION)
 
     try:
         with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="int16") as stream:
@@ -178,10 +185,15 @@ def record_with_auto_vad(filename: str | None = None, silence_limit_sec: float =
                         print("   🗣️ (Đã bắt được giọng của sếp...)")
                     has_spoken = True
                     silent_chunks = 0
+                    initial_silent_chunks = 0
                 else:
                     if has_spoken:
                         silent_chunks += 1
                         if silent_chunks >= max_silent_chunks:
+                            break
+                    else:
+                        initial_silent_chunks += 1
+                        if max_initial_silent_chunks > 0 and initial_silent_chunks >= max_initial_silent_chunks:
                             break
     except Exception as e:
         print(f"⚠️ Lỗi truy cập Micro: {e}")

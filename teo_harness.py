@@ -44,7 +44,7 @@ import aiohttp
 sys.modules.setdefault("teo_harness", sys.modules[__name__])
 
 import config
-from tools.common import load_json
+from tools.common import _strip_accents, load_json
 from tools.guardrails import (
     clear_pending_action,
     get_pending_action,
@@ -368,6 +368,45 @@ def _sanitize_context_snippet(text: str, max_len: int = 80) -> str:
     return clean[:max_len]
 
 
+def _select_relevant_memories(
+    safe_mems: list[dict[str, Any]],
+    user_text: str,
+    max_memories: int = 4,
+) -> list[dict[str, Any]]:
+    """Select top keyword-overlapping memories plus recent items without breaking index order."""
+    if max_memories <= 0:
+        return []
+    if len(safe_mems) <= max_memories:
+        return list(safe_mems)
+
+    q_tokens = {w for w in re.findall(r"[a-z0-9]+", _strip_accents(user_text)) if len(w) >= 2}
+    if not q_tokens:
+        return safe_mems[-max_memories:]
+
+    scored: list[tuple[int, int]] = []
+    for idx, mem in enumerate(safe_mems):
+        mem_text = f"{mem.get('key', '')} {mem.get('value', '')}"
+        mem_tokens = set(re.findall(r"[a-z0-9]+", _strip_accents(mem_text)))
+        overlap = len(q_tokens & mem_tokens)
+        if overlap > 0:
+            scored.append((overlap, idx))
+
+    if not scored:
+        return safe_mems[-max_memories:]
+
+    scored.sort(key=lambda pair: (pair[0], pair[1]), reverse=True)
+    chosen_indices: list[int] = [idx for _, idx in scored[: max(1, max_memories - 1)]]
+
+    for idx in range(len(safe_mems) - 1, -1, -1):
+        if len(chosen_indices) >= max_memories:
+            break
+        if idx not in chosen_indices:
+            chosen_indices.append(idx)
+
+    chosen_indices.sort()
+    return [safe_mems[i] for i in chosen_indices]
+
+
 def build_dynamic_user_message(
     user_text: str,
     now_str: str | None = None,
@@ -414,7 +453,7 @@ def build_dynamic_user_message(
                 m for m in memories
                 if isinstance(m, dict) and m.get("source", "user") != "tainted_turn"
             ]
-            selected = safe_mems[-max_memories:]
+            selected = _select_relevant_memories(safe_mems, raw, max_memories=max_memories)
             if selected:
                 m_strs = [
                     f"{_sanitize_context_snippet(m.get('key', ''), 30)}={_sanitize_context_snippet(m.get('value', ''), 45)}"
@@ -660,7 +699,7 @@ async def run_deterministic_eval_suite(verbose: bool = True) -> dict[str, Any]:
     async def fake_tts(http_session, sentence, is_first_sentence=True, prefer_fast=False):
         return b"FAKE_WAV_BYTES", 12.0, "MockPiper", False
 
-    def fake_play(audio_bytes, abort_event=None):
+    def fake_play(audio_bytes, abort_event=None, *args, **kwargs):
         return None
 
     try:

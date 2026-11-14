@@ -20,7 +20,7 @@ Cập nhật: 07/11/2026 (đồng bộ hoàn chỉnh phần cứng/vỏ với **
 | **Giữ lại** | Màn hình LCD, camera, 2 servo cánh tay (bỏ khớp cổ, tạo hình nguyên cục Unibody và dùng đế Omni tự xoay cả thân để đổi góc nhìn), cảm biến hiện diện (`HLK-LD2410C`), pin 2S 18650 (2 nhánh hạ áp độc lập), voiceprint (tích hợp trong model Wake Word của Edge Impulse), RAG. |
 | **Tính năng thêm** | Phát nhạc/YouTube kèm hook `pycaw` tự vặn nhỏ nhạc khi nói (6.7), tóm tắt và đọc to văn bản (6.6), đọc truyện (6.8), dịch thuật tự đổi giọng TTS (6.9), đung đưa/nhảy trượt ngang theo nhịp nhạc bằng cơ chế **Motion Bundle** (5.4), tự động hóa viết code kỹ năng mới bằng **`ANTIGRAVITY.md` & GitHub Spec-Kit SDD** (6.2). |
 | **Hình dáng & Đế di chuyển** | Thiết kế **nguyên cục liền khối (Unibody Chunky Pod)** bo tròn đáng yêu ($116 \times 120 \times 142\text{ mm}$, đã bỏ khớp cổ), đỉnh đầu bo cong vòm mềm mại (dome 3D). Thân gắn liền với cụm 3 bánh xe đa hướng đôi **`Nexus 14108` $\varnothing 48 \times 25.5\text{ mm}$ bố trí kiểu LeKiwi** (2 bánh trước góc $\pm 60^\circ$, 1 bánh sau $180^\circ$ tại bán kính **$R = 58.0\text{ mm}$** kèm 2 đệm chống lật đuôi kép tại `(-42, ±36 mm)`). Dùng duy nhất 1 module **PCA9685 (16 kênh PWM)** điều khiển cả **2 Servo cánh tay (`MG90S 180°`)** lẫn **3 Servo bánh xe (`MG90S 360°`)** (tổng 5 servo khóa cứng bằng nẹp vít `teo_nep_giu_servo`, không dùng keo). Bên trong có **vách ngăn ngang tại $Z = 58.0\text{ mm}$** đỡ **Pack Pin 2S nguyên khối**, 2 mạch `MINI560` và 2 kẹp `CH-2`; tầng trên cùng là khay `Pin-Up` (`Z = 99 mm`) chứa `ESP32-S3` + `PCA9685` + kẹp ngắt nguồn nhanh `SM-2P` (bỏ công tắc vật lý `KCD11` và bỏ LED cằm `WS2812`). Tổng khối lượng $733.1\text{ g}$, $CoM_Z = 61.54\text{ mm}$, góc lật tĩnh $23.8^\circ / 25.9^\circ$ (đã pass 100% MuJoCo). |
-| **Vỏ robot & Kính mặt** | **In 3D toàn bộ thân vỏ và kính che mặt (11 file `.stl` + `.step` sinh từ `build_teo_cad.py`):** Gồm thân dưới + vách ngăn + thân trên ghép bằng 4 ốc lục giác chìm `M2.5 × 55 mm` từ đáy, **mũ đầu tháo bằng 4 cặp nam châm $\varnothing 6 \times 2\text{ mm}$**, khay điện tử thả đứng, nắp hộp loa kín khí, 2 cánh tay + 2 nắp chụp, 3 hub nối bánh `Nexus 14108`, và 5 thanh nẹp giữ servo; **Mặt kính che hốc màn hình in 3D SLA Clear Resin** ($70 \times 60 \times 1.8\text{ mm}$) phủ bóng khói Tamiya TS-71 giấu viền LCD `ST7789 2.0"`, chừa lỗ vát $45^\circ$ $\varnothing 6.5\text{ mm}$ cho `ESP32-CAM OV3660`. |
+| **Vỏ robot & Kính mặt** | **In 3D toàn bộ thân vỏ và kính che mặt (11 file `.stl` + `.step` sinh từ `build_teo_cad.py`):** Gồm thân dưới + vách ngăn + thân trên ghép bằng 4 ốc lục giác chìm `M2.5 × 55 mm` từ đáy, **mũ đầu ngàm gài đàn hồi ẩn 4 điểm (Snap-Fit) kèm rãnh mở nhanh phía sau**, khay điện tử thả đứng, nắp hộp loa kín khí, 2 cánh tay + 2 nắp chụp, 3 hub nối bánh `Nexus 14108`, và 5 thanh nẹp giữ servo; **Mặt kính che hốc màn hình in 3D SLA Clear Resin** ($70 \times 60 \times 1.8\text{ mm}$) phủ bóng khói Tamiya TS-71 giấu viền LCD `ST7789 2.0"`, chừa lỗ vát $45^\circ$ $\varnothing 6.5\text{ mm}$ cho `ESP32-CAM OV3660`. |
 | **Ưu tiên** | Cân bằng tối ưu giữa chi phí thấp và thẩm mỹ hoàn thiện cao cấp chuẩn robot AI để bàn. |
 
 Hệ quả: Bỏ failover cloud, mini server luôn bật và toàn bộ rắc rối về sleep/Wake-on-LAN. Laptop tắt hẳn thì robot không dùng được, và với cách dùng này thì hoàn toàn chấp nhận.
@@ -206,7 +206,7 @@ teo_sim_AI/
   3. *Nhóm Năng suất & Tiện ích (3):* `doc_clipboard_laptop` (đọc nội dung bôi đen `Ctrl+C`), `nhin_man_hinh_laptop` (chụp màn hình gửi DeepSeek Vision), `hen_gio_pomodoro` (bộ đếm giờ tập trung phát giọng nói).
   4. *Nhóm Ký ức & Tri thức (3):* `ghi_nho_thong_tin` (lưu vào CSDL SQLite lâu dài), `tim_lai_ky_uc` (truy vấn ký ức theo ngữ nghĩa), `tim_kiem_duckduckgo` (cập nhật thông tin thời sự mới nhất).
   5. *Nhóm Giải trí & Hội thoại (2):* `phat_nhac_youtube` (mở nhạc kèm auto-ducking `pycaw`), `tro_chuyen_va_hoi_dap`.
-* *Lưu ý:* Các công cụ can thiệp sâu hệ thống Đợt 3 (`mo_ung_dung_va_workspace`, `tim_va_don_dep_file`, `dieu_khien_he_thong_windows`) tạm hoãn, sẽ triển khai sau khi hoàn tất phần cứng.
+* *Lưu ý:* Các công cụ can thiệp sâu hệ thống Đợt 3 (`mo_ung_dung_va_workspace`, `tim_va_don_dep_file`, `dieu_khien_he_thong_windows`) và mở rộng cầu nối 2 chiều sẽ triển khai ở **Gói 2 & Gói 3** sau khi hoàn tất phần cứng (chi tiết xem mục **6.5**).
 
 ### 6.3. Quy trình huấn luyện "Ê Tèo" kiêm Voiceprint trên Edge Impulse
 
@@ -218,6 +218,26 @@ teo_sim_AI/
 * **Tóm tắt & Đọc nguyên văn (`doc_reader.py`):** Dùng `markitdown` đọc file `.pdf`, `.docx`, `.txt`, `.md` trong thư mục `tai_lieu/`, lưu vị trí câu vào `teo_bookmark.json` (hỗ trợ *đọc mới, đọc tiếp, đọc lại*) và đọc bằng giọng **Piper VITS Offline** tốn 0 đồng, không bao giờ bị giới hạn băng thông.
 * **Phát nhạc YouTube & Auto-Ducking (`pycaw`):** Tự động hạ âm lượng trình duyệt (`chrome.exe`, `msedge.exe`, `spotify.exe`, `mpv.exe`) xuống **15%** ngay khi bắt đầu thu âm và khôi phục **100%** khi Tèo trả lời xong.
 * **Dịch thuật đa ngôn ngữ:** Tự động nhận diện ngôn ngữ bằng `detect_lang_fast()`: Tiếng Việt đọc bằng **Piper VITS Offline**, tiếng Anh/Trung/Nhật tự động chuyển sang **Google TTS** đúng giọng bản xứ.
+
+### 6.5. Lộ trình nâng cấp Agent Giai đoạn Sau Phần cứng (Gói 2 & Gói 3 — Backlog)
+
+Sau khi đã hoàn thành **Gói 1** (Vá lỗi & Tối ưu lõi Agent trên Laptop), phần mềm Agent sẽ tiếp tục mở rộng 2 gói sau ngay khi phần cứng ESP32-S3 / Cảm biến / Camera được lắp ráp hoàn thiện:
+
+#### Gói 2 — Khép kín cầu nối Phần cứng / 3D Sim 2 chiều & Hội thoại liên tục (`main.py`, `teo_sim_runner.py`)
+1. **UDP/WebSocket Event Listener 2 chiều cho `robot_node`:** Chạy listener nền `asyncio` trong `main.py` lắng nghe gói tin ký HMAC-SHA256 từ ESP32-S3 và `teo_sim_runner.py`:
+   * `touch_confirm` (cảm biến chạm đỉnh đầu `TTP223`): Tự động xác nhận HITL đang chờ hoặc kích hoạt ngắt lời (`barge-in`) ngay tức thì.
+   * `cliff_alert` (3 mắt hồng ngoại IR chống rơi bàn) & tín hiệu hiện diện từ `HLK-LD2410C`.
+2. **Đồng bộ nút `[T]` từ 3D Simulator:** Cập nhật phím `[T]` trong `teo_sim_runner.py` gửi gói UDP `robot_node` sang tiến trình `main.py` để test HITL & `barge-in` xuyên tiến trình.
+3. **Chế độ Hội thoại Liên tục (Continuous Conversation Window 8s) & Global Hotkey (`Alt + Space`):** Tự mở mic lại trong 8 giây sau khi Tèo trả lời hoặc hỏi xác nhận HITL; tự đóng phiên khi im lặng hết 8 giây hoặc sếp nói *"Nghỉ đi em / Cảm ơn Tèo"*.
+4. **Proactive Health & Morning Briefing Loop:** Khi `HLK-LD2410C` phát hiện sếp ngồi vào bàn buổi sáng hoặc ngồi quá 60–90 phút, Tèo chủ động vẫy tay chào, nhắc uống nước và đọc bản tin ngắn.
+
+#### Gói 3 — Hoàn thiện 14/14 Tool Schemas chuẩn Gộp hàm & Mở rộng `.agents/` (`tools/`, `teo_motion_mcp.py`)
+Giữ vững trần hiến chương $\le 14$ Tool Schemas (`ANTIGRAVITY.md`), tận dụng 2 slot mở rộng và 2 mở rộng tại chỗ:
+1. **Mở rộng tại chỗ Tool #9 `nhin_man_hinh_laptop` (0 slot mới):** Thêm tham số `nguon="man_hinh" | "camera_teo"` kết nối trực tiếp `ESP32-CAM OV3660` (`/capture`), hỗ trợ nhìn vật thể đời thực và quét hóa đơn OCR (`#12`, `#14`).
+2. **Mở rộng tại chỗ Tool #4 `doc_va_tom_tat_tai_lieu` (0 slot mới):** Thêm `thao_tac="tim_kiem_rag"` truy xuất đoạn văn bản cục bộ (`bge-m3` / BM25) trong `tai_lieu/` (`#8`).
+3. **Thêm Tool #13 `dieu_khien_ung_dung_va_he_thong` (Slot 13/14):** Gộp mở ứng dụng/Workspace theo allowlist (`#16`), phân loại dọn dẹp thư mục `Downloads` không xóa file (`#17`), khóa/tắt màn hình/hẹn giờ tắt máy có HITL (`#18`), và kiểm tra kết nối mạng/ping DeepSeek + LAN (`#19`).
+4. **Thêm Tool #14 `tro_ly_ban_tin_va_so_tay` (Slot 14/14):** Gộp Bản tin buổi sáng tổng hợp Thời tiết + Todo + Hẹn giờ (`#4`), Sổ tay ghi chú nhanh Markdown/Obsidian (`#2`), và Cầu nối bắn tin nhắn/Todo sang điện thoại qua Telegram Bot (`#28`).
+5. **Mở rộng Coding Agent Harness (`.agents/`):** Thêm skill `.agents/skills/teo-hardware-sim-sync` (chuẩn đồng bộ CAD–MuJoCo–GPIO `ESP32-S3`) và MCP tool `phan_tich_hieu_nang_trace_teo` trong `teo_motion_mcp.py` để thống kê `TTFT`, `TTFA`, tỷ lệ Cache Hit từ `logs/agent_traces.jsonl`.
 
 ---
 
@@ -242,9 +262,9 @@ teo_sim_AI/
 | **5** | Gắn cảm biến hiện diện `HLK-LD2410C` (chân 2.54mm) + tính năng tự mở mắt chào và đọc Bản tin buổi sáng khi chủ nhân ngồi vào bàn. | **~0,08–0,12 triệu** |
 | **6** | Lắp module camera riêng (`XIAO ESP32S3 Sense` / `ESP32-S3-CAM`) + kết nối vào tool `nhin_qua_camera_teo()`. | **~0,2–0,35 triệu** |
 | **7** | Mở khóa các tool có thể ghi/hành động trên laptop (Mở Workspace ứng dụng, Dọn file Downloads, Khóa/Tắt máy có xác nhận giọng nói). | **0 đồng** |
-| **8** | Lắp hệ thống **Pack Pin 2S 7.4V 18650 (2000–2600mAh bọc màng co sẵn Jack SM-2P & BMS)** + Module sạc Type-C IP2326 (kết nối không hàn qua kẹp CH-2) + **2 mạch hạ áp MINI560 5V hàn sẵn rào chân** đặt trên vách ngăn `teo_vach_ngan`, giắc `SM-2P` đưa lên kẹp ngắt nguồn nhanh dưới mũ đầu nam châm (bỏ công tắc `KCD11`). | **~0,18–0,3 triệu** |
+| **8** | Lắp hệ thống **Pack Pin 2S 7.4V 18650 (2000–2600mAh bọc màng co sẵn Jack SM-2P & BMS)** + Module sạc Type-C IP2326 (kết nối không hàn qua kẹp CH-2) + **2 mạch hạ áp MINI560 5V hàn sẵn rào chân** đặt trên vách ngăn `teo_vach_ngan`, giắc `SM-2P` đưa lên kẹp ngắt nguồn nhanh dưới mũ đầu ngàm gài Snap-Fit (bỏ công tắc `KCD11`). | **~0,18–0,3 triệu** |
 | **9** | **Lắp Cụm 3 bánh xe đa hướng (`Nexus 14108` $\varnothing 48 \times 25.5\text{ mm}$ kiểu `LeKiwi`, $R = 58\text{ mm}$):** Gắn 3 bánh qua 3 hub in 3D `teo_hub_banh_omni` vào **3 Servo `MG90S 360°`** khóa bằng nẹp vít `teo_nep_giu_servo` (2 bánh trước $\pm 60^\circ$, 1 bánh sau $180^\circ$) + 3 cảm biến IR chống rơi đối xứng $120^\circ$ + 2 đệm nỉ chống lật đuôi. | **~0,25–0,4 triệu** |
-| **10** | **In 3D Thân vỏ Unibody CAD v10 & Kính cong SLA:** In 11 file `.step`/`.stl` (19 chi tiết: thân dưới, vách ngăn, thân trên, khay linh kiện `Pin-Up`, mũ đầu nam châm, kính SLA, nắp hộp loa, tay ×2, nắp chụp tay ×2, hub bánh Omni ×3, nẹp giữ servo ×5), xem `thong-so-thiet-ke-vo-robot-teo.md`. | **~0,2–0,35 triệu** |
+| **10** | **In 3D Thân vỏ Unibody CAD v10 & Kính cong SLA:** In 11 file `.step`/`.stl` (19 chi tiết: thân dưới, vách ngăn, thân trên, khay linh kiện `Pin-Up`, mũ đầu ngàm gài Snap-Fit, kính SLA, nắp hộp loa, tay ×2, nắp chụp tay ×2, hub bánh Omni ×3, nẹp giữ servo ×5), xem `thong-so-thiet-ke-vo-robot-teo.md`. | **~0,2–0,35 triệu** |
 
 ---
 
@@ -269,6 +289,9 @@ teo_sim_AI/
 * [x] **Hoàn thiện các Tool Đợt 1 & Đợt 2 trên Laptop:** Hoàn thành 100% 12 công cụ cốt lõi (Kiwi Drive 3D Sim, Motion Bundle, Doc Bookmark, Clipboard `Ctrl+C`, Chụp màn hình Vision, Pomodoro, SQLite Long-term Memory, DuckDuckGo Search) với 24/24 unit tests & integration tests pass.
 * [x] **Chuẩn hóa Agent theo GitHub Spec-Kit SDD (`ANTIGRAVITY.md`):** Đã thay thế `AGENTS.md` bằng tài liệu đặc tả `ANTIGRAVITY.md` chuẩn quốc tế, tích hợp cơ chế bảo mật HMAC-SHA256 và quy chuẩn kiểm thử tự động.
 * [x] **Hoàn thiện CAD v10 (`build_teo_cad.py`) & Chạy kiểm chứng MuJoCo (07/11/2026):** Đã dựng mới tham số hóa 11 file `.step`/`.stl` (`116 × 120 × 142 mm`, $R_{\text{wheel}} = 58.0\text{ mm}$, bánh đôi `Nexus 14108`, camera `ESP32-CAM OV3660`, nẹp vít 5 servo không keo, kiểm định Boolean `0.00 mm³` giao cắt), đồng bộ `teo_walle.xml` + `teo_sim_runner.py` và vượt qua 100% bài test động lực học & 24/24 unit/integration tests.
+* [x] **Nâng cấp Lõi Agent Gói 1 (Vá lỗi & Tối ưu Hiệu năng):** Sửa truyền `priority` xuống `PriorityAudioBus`, nối cờ `source="tainted_turn"` vào `teo_memory.json`, tự dọn HITL `pending_action` khi đổi ý, Smart Top-K Memory Retrieval, chạy song song tool độc lập (`asyncio.gather`), chống cắt nhầm từ viết tắt khi stream TTS, ngắt sớm Auto-VAD im lặng, tối ưu khởi chạy `mpv`/fallback DuckDuckGo và vá đường dẫn + chặn shell `.env` trong `.agents/hooks.json`.
+* [ ] **Triển khai Gói 2 (Sau hoàn thiện phần cứng):** UDP Listener 2 chiều (`TTP223`, `IR Cliff`, `HLK-LD2410C`) trong `main.py` + `teo_sim_runner.py`, Hội thoại liên tục 8s, phím tắt `Alt + Space` và Proactive Health/Morning Briefing (xem mục 6.5).
+* [ ] **Triển khai Gói 3 (Sau hoàn thiện phần cứng):** Hoàn thiện đủ 14/14 Tool Schemas (`camera_teo`, `tim_kiem_rag`, `dieu_khien_ung_dung_va_he_thong`, `tro_ly_ban_tin_va_so_tay`) + skill `teo-hardware-sim-sync` và MCP trace analyzer (xem mục 6.5).
 * [ ] **In thử đồ gá nhanh trước khi in nguyên bộ vỏ lớn:** In trước 1 `teo_hub_banh_omni` + 1 `teo_nep_giu_servo` để ướm thử độ khít với sừng chữ thập `MG90S` và lỗ trục $\varnothing 13.9\text{ mm}$ của bánh `Nexus 14108` trên máy in thực tế, sau đó tiến hành in toàn bộ thân vỏ trong OrcaSlicer.
 * [ ] **Kiểm tra thực tế ở Bước 2 & Bước 9:** Thu âm model `"Ê Tèo"` trên Edge Impulse và ráp thử nghiệm mạch ESP32-S3 cùng đế 3 bánh xe Omni kèm đệm chống lật đuôi trên mặt bàn làm việc thật.
 

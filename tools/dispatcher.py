@@ -137,8 +137,12 @@ def run_tool(func_name: str, args_json: str, ctx: TurnContext | None = None) -> 
             )
 
     spec = TOOL_SPECS.get(func_name)
+    handler_args = args
+    if func_name == "ghi_nho_thong_tin_dai_han" and args.get("thao_tac", "luu") == "luu":
+        handler_args = {**args, "_source": "tainted_turn" if ctx.tainted else "user"}
+
     try:
-        raw = _get_handler(func_name)(args)
+        raw = _get_handler(func_name)(handler_args)
     except ImportError as e:
         log.exception("Tool %s unavailable", func_name)
         return _fail(func_name, args, ctx, f"ERROR tool_unavailable: missing dependency ({e.name}).")

@@ -102,7 +102,7 @@ TEST_CASES = [
 ]
 
 
-def calculate_kiwi_speeds(vx: float, vy: float, omega: float, r: float = 0.055, scale: float = 35.0):
+def calculate_kiwi_speeds(vx: float, vy: float, omega: float, r: float = 0.058, scale: float = 35.0):
     """Tính vận tốc 3 bánh xe theo công thức LeKiwi chuẩn."""
     sqrt3_2 = math.sqrt(3.0) / 2.0
     r_omega = r * omega
@@ -115,7 +115,7 @@ def calculate_kiwi_speeds(vx: float, vy: float, omega: float, r: float = 0.055, 
 def run_test_suite(auto_mode: bool = True):
     print("=" * 80)
     print("🤖 CHƯƠNG TRÌNH THỬ NGHIỆM ĐỘNG HỌC & CÔNG CỤ CHUYỂN ĐỘNG ROBOT TÈO")
-    print("   Hệ thống: ESP32-S3 + PCA9685 + 3 Servo MG90S 180° + 3 Bánh Omni Kiwi Drive")
+    print("   Hệ thống: ESP32-S3 + PCA9685 + 2 Servo MG90S 180° Arms + 3 Bánh Omni Kiwi Drive (Unibody R=58mm)")
     print("=" * 80)
 
     success_count = 0

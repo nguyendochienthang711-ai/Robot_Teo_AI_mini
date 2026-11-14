@@ -289,6 +289,7 @@ def tool_ghi_nho_thong_tin_dai_han(args: dict) -> str:
             return "Sếp chưa cung cấp thông tin cần ghi nhớ."
         topic = (key or content[:40]).strip()
         val = (content or key).strip()[:MAX_MEMORY_VAL_LEN]
+        source_tag = str(args.get("_source") or "user")
 
         def mutate_save(memories: list[dict]):
             if len(memories) >= MAX_MEMORIES:
@@ -297,11 +298,13 @@ def tool_ghi_nho_thong_tin_dai_han(args: dict) -> str:
             for m in memories:
                 if _strip_accents(m.get("key", "")) == norm_topic:
                     m["value"] = val
+                    m["source"] = source_tag
                     m["updated_at"] = time.strftime("%H:%M %d/%m/%Y")
                     return "UPDATED"
             memories.append({
                 "key": topic,
                 "value": val,
+                "source": source_tag,
                 "updated_at": time.strftime("%H:%M %d/%m/%Y"),
             })
             return "SAVED"

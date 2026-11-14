@@ -103,6 +103,32 @@ def _fetch_weather(city: str) -> str:
         return f"ERROR weather_unavailable: {e}"
 
 
+def _fetch_ddg_instant_fallback(query: str) -> list[str]:
+    """Fallback to DuckDuckGo Instant Answer JSON API when HTML scraping is blocked or empty."""
+    snippets: list[str] = []
+    try:
+        api_url = (
+            "https://api.duckduckgo.com/?q="
+            f"{urllib.parse.quote_plus(query)}&format=json&no_html=1&skip_disambig=1"
+        )
+        r = _session.get(api_url, timeout=3.5)
+        if r.status_code != 200:
+            return []
+        data = r.json()
+        abstract = (data.get("AbstractText") or "").strip()
+        heading = (data.get("Heading") or query).strip()
+        if abstract:
+            snippets.append(f"{heading}: {abstract[:250]}")
+        for topic in (data.get("RelatedTopics") or [])[:3]:
+            if isinstance(topic, dict) and topic.get("Text"):
+                snippets.append(str(topic["Text"])[:220])
+                if len(snippets) >= 3:
+                    break
+    except Exception:
+        pass
+    return snippets
+
+
 def _fetch_web_search(query: str) -> ToolResult | str:
     """Search DuckDuckGo HTML with Vietnamese localization and untrusted wrapping (TL-04, TL-13)."""
     if not query.strip():
@@ -114,20 +140,23 @@ def _fetch_web_search(query: str) -> ToolResult | str:
             headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"},
             timeout=5.0,
         )
-        if resp.status_code != 200:
-            return f"Không thể kết nối công cụ tìm kiếm (mã {resp.status_code})."
-
-        soup = BeautifulSoup(resp.text, "html.parser")
         snippets = []
-        for res_div in soup.select(".result__body")[:3]:
-            title_el = res_div.select_one(".result__title")
-            snip_el = res_div.select_one(".result__snippet")
-            title = title_el.get_text(" ", strip=True) if title_el else ""
-            snip = snip_el.get_text(" ", strip=True)[:250] if snip_el else ""
-            if title or snip:
-                snippets.append(f"{title}: {snip}")
+        if resp.status_code == 200:
+            soup = BeautifulSoup(resp.text, "html.parser")
+            for res_div in soup.select(".result__body")[:3]:
+                title_el = res_div.select_one(".result__title")
+                snip_el = res_div.select_one(".result__snippet")
+                title = title_el.get_text(" ", strip=True) if title_el else ""
+                snip = snip_el.get_text(" ", strip=True)[:250] if snip_el else ""
+                if title or snip:
+                    snippets.append(f"{title}: {snip}")
 
         if not snippets:
+            snippets = _fetch_ddg_instant_fallback(query)
+
+        if not snippets:
+            if resp.status_code != 200:
+                return f"Không thể kết nối công cụ tìm kiếm (mã {resp.status_code})."
             return f"Không tìm thấy kết quả trực tuyến nào cho từ khóa '{query}'."
 
         combined = " | ".join(snippets)

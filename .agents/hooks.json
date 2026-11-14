@@ -3,7 +3,7 @@
     "enabled": true,
     "PreToolUse": [
       {
-        "matcher": "read_file|view_file|edit_file|write_file",
+        "matcher": "read_file|view_file|edit_file|write_file|run_command",
         "hooks": [
           {
             "type": "command",

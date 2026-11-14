@@ -98,7 +98,12 @@ def _play_youtube_background(url_or_query: str) -> str | None:
                 stderr=subprocess.DEVNULL,
                 creationflags=no_win_flag,
             )
-            time.sleep(1.0)
+            for step in range(7):
+                time.sleep(0.05)
+                if _bg_music_proc.poll() is not None:
+                    break
+                if os.path.exists(MPV_PIPE) or step >= 4:
+                    return "mpv (IPC)"
             if _bg_music_proc.poll() is None:
                 return "mpv (IPC)"
         except Exception as e:
@@ -127,7 +132,7 @@ def _play_youtube_background(url_or_query: str) -> str | None:
                     stderr=subprocess.DEVNULL,
                     creationflags=no_win_flag,
                 )
-                time.sleep(0.5)
+                time.sleep(0.15)
                 if _bg_music_proc.poll() is None:
                     return "ffplay (ngầm)"
         except Exception:

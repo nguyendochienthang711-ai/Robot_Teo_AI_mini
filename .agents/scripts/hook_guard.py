@@ -8,6 +8,7 @@ Antigravity Lifecycle Hook Handler for Robot "Tèo" AI Harness (.agents/hooks.js
 import argparse
 import json
 import py_compile
+import re
 import sys
 import time
 from pathlib import Path
@@ -53,6 +54,13 @@ def handle_pre_tool(payload: dict) -> dict:
                 "decision": "deny",
                 "reason": "Blocked by Teo Harness Hook: direct access to .env secrets is prohibited (use .env.example).",
             }
+
+    cmd_line = str(args.get("CommandLine") or args.get("command") or "").strip()
+    if cmd_line and re.search(r"(?:^|[\s\"'/\\])\.env(?![\w.])", cmd_line, re.I):
+        return {
+            "decision": "deny",
+            "reason": "Blocked by Teo Harness Hook: shell access to .env secrets is prohibited (use .env.example).",
+        }
 
     return {"decision": "allow"}
 

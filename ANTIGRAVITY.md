@@ -21,7 +21,7 @@ All AI agents working on this codebase **MUST strictly obey** the following cons
 ```text
 [Robot Hardware: ESP32-S3 N16R8] ── Wi-Fi LAN / UDP HMAC-SHA256 ──► [Server: Laptop HP Victus 15]
  ├─ Audio I/O: Mic INMP441, MAX98357A + Loa 3W                          ├─ Entry Point: main.py
- ├─ Actuators: PCA9685 I2C (Ch 0..2: MG90S 180°, Ch 3..5: MG90S 360°)   ├─ Audio Engine: audio_io.py (Piper VITS Offline + pycaw)
+ ├─ Actuators: PCA9685 I2C (Ch 0..1: 2x MG90S 180° Arms, Ch 3..5: 3x MG90S 360° Omni (Unibody 5-servo, R=58mm)) ├─ Audio Engine: audio_io.py (Piper VITS Offline + pycaw)
  ├─ Sensors: 3x IR Cliff, ST7789 LCD, TTP223 touch pad                  ├─ Brain: brain.py (DeepSeek 3-tier streaming)
  └─ Power: 2S 18650 + BMS + 2x MINI560 5V isolated branches             ├─ Tool Engine: tools/ (Dispatcher, Policy, Schemas, Guardrails)
                                                                         └─ 3D Simulation: teo_walle.xml & teo_sim_runner.py
