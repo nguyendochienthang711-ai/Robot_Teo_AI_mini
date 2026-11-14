@@ -42,7 +42,7 @@ SHELL_Y = 120.0          # [-60.0, +60.0] Left (+Y) to Right (-Y)
 Z_BOT = 7.0              # Chassis underside ground clearance
 Z_TOP = 142.0            # Top of dome
 Z_WAIST = 58.0           # Lower/Upper split plane
-Z_NECK = 122.0           # Upper/Head magnetic dome split plane
+Z_NECK = 122.0           # Upper/Head snap-fit dome split plane
 WALL = 2.0               # Nominal shell wall thickness
 R_CORNER = 24.0          # Horizontal rounded corner radius (> R_DOME to avoid fillet pinch)
 R_BOT = 6.0              # Bottom skirt fillet
@@ -64,13 +64,8 @@ BOSS_XY = [
     (-6.0, -52.5),
 ]
 
-# === 4x Ø6x2mm Neodymium Head Magnet Lugs ===
-MAG_XY = [
-    (43.5, 45.5),
-    (43.5, -45.5),
-    (-43.5, 45.5),
-    (-43.5, -45.5),
-]
+# === 4x Symmetric Side Snap-Fit Clip X-Centers (on Y = +-58.0mm flat walls) ===
+SNAP_X = (-16.0, 16.0)
 
 # === Front Face Optical Centers ===
 Z_LCD = 75.0             # ST7789 2.0" center (PCB Z = 57.5..92.5)
@@ -600,33 +595,40 @@ def build_upper_shell(outer, inner, shell):
             1.08, 7.0, align=(Align.CENTER, Align.CENTER, Align.MIN)
         )
 
-    # 7. 4x Compact Corner Magnet Lugs at Z = 113.0..122.0 (leaves wide-open top neck!)
-    for mx, my in MAG_XY:
-        sx_s = 1.0 if mx > 0 else -1.0
-        sy_s = 1.0 if my > 0 else -1.0
-        m_cyl = Pos(mx, my, 114.0) * Cylinder(
-            5.4, 8.0, align=(Align.CENTER, Align.CENTER, Align.MIN)
-        )
-        m_web = Pos(mx + sx_s * 5.0, my + sy_s * 5.0, 108.0) * Box(
-            14.0, 14.0, 14.0, align=(Align.CENTER, Align.CENTER, Align.MIN)
-        )
-        # Trim 45-deg underside slope on corner magnet lug + web so zero support is needed!
-        m_lug = m_cyl + m_web
-        diag_ang = math.degrees(math.atan2(sy_s, sx_s))
-        m_lug -= (
-            Pos(mx - sx_s * 5.4, my - sy_s * 5.4, 122.0)
-            * Rot(0, 0, diag_ang)
-            * Rot(0, 45, 0)
-            * Box(30.0, 30.0, 30.0, align=(Align.MAX, Align.CENTER, Align.MAX))
-        )
-        part += m_lug & outer
-        # Ø6.3 x 2.2mm magnet pocket
-        part -= Pos(mx, my, Z_NECK - 2.2) * Cylinder(
-            3.15, 3.0, align=(Align.CENTER, Align.CENTER, Align.MIN)
-        )
-
-    # Ensure crisp Z_NECK = 122.0 top plane
+    # Ensure crisp Z_NECK = 122.0 top plane first
     part &= Pos(0, 0, 55.0) * Box(200, 200, Z_NECK - 55.0, align=(Align.CENTER, Align.CENTER, Align.MIN))
+
+    # 7. 4x Internal 45-deg Snap-Fit Catch Grooves (X = +-16.0, Y = +-58.0) + Rear Fingernail Pry Slot
+    for sx_c in SNAP_X:
+        for sy_sign in (-1.0, 1.0):
+            groove_poly = Polygon(
+                [
+                    (sy_sign * 57.20, 117.20),
+                    (sy_sign * 58.60, 118.60),
+                    (sy_sign * 58.60, 120.15),
+                    (sy_sign * 57.20, 121.55),
+                ],
+                align=None,
+            )
+            lead_in_poly = Polygon(
+                [
+                    (sy_sign * 57.20, 121.45),
+                    (sy_sign * 58.35, 122.05),
+                    (sy_sign * 57.20, 122.05),
+                ],
+                align=None,
+            )
+            groove_cut = extrude(Plane.YZ.offset(sx_c) * groove_poly, amount=7.0, both=True)
+            lead_in_cut = extrude(Plane.YZ.offset(sx_c) * lead_in_poly, amount=7.0, both=True)
+            part -= groove_cut + lead_in_cut
+
+    # Rear fingernail pry slot (lower chamfer bevel at X = -58.0, Y in [-8, +8], Z = 121.3..122.0)
+    part -= (
+        Pos(-58.2, 0, 122.0)
+        * Rot(0, 45, 0)
+        * Box(1.6, 16.0, 1.6, align=(Align.CENTER, Align.CENTER, Align.CENTER))
+    )
+
     return part
 
 
@@ -728,7 +730,7 @@ def build_tray():
 
 
 def build_head_dome(outer, inner, shell):
-    """Build Part 8: Magnetic Top Dome Cap (teo_mu_dau, Z = 120.3..142.0mm)."""
+    """Build Part 8: Snap-Fit Top Dome Cap (teo_mu_dau, Z = 117.85..142.0mm)."""
     part = shell & Pos(0, 0, Z_NECK) * Box(
         200, 200, Z_TOP - Z_NECK + 2.0, align=(Align.CENTER, Align.CENTER, Align.MIN)
     )
@@ -739,7 +741,7 @@ def build_head_dome(outer, inner, shell):
         amount=1.8,
     )
     lip_low_in = extrude(
-        Pos(0, 0, 120.3) * RectangleRounded(SHELL_X - 7.4, SHELL_Y - 7.4, R_CORNER - 3.7),
+        Pos(0, 0, 120.3) * RectangleRounded(SHELL_X - 7.8, SHELL_Y - 7.8, R_CORNER - 3.9),
         amount=3.5,
     )
     lip_bridge_out = extrude(
@@ -747,34 +749,43 @@ def build_head_dome(outer, inner, shell):
         amount=1.5,
     )
     skirt = ((lip_low_out + lip_bridge_out) - lip_low_in) & outer
-    for mx, my in MAG_XY:
-        sx_s = 1.0 if mx > 0 else -1.0
-        sy_s = 1.0 if my > 0 else -1.0
-        skirt -= Pos(mx, my, 119.8) * Cylinder(
-            8.4, 4.5, align=(Align.CENTER, Align.CENTER, Align.MIN)
-        )
-        skirt -= Pos(mx + sx_s * 4.0, my + sy_s * 4.0, 119.8) * Box(
-            18.0, 18.0, 4.5, align=(Align.CENTER, Align.CENTER, Align.MIN)
-        )
-    # Front camera forehead & Rear louver clearance notches on skirt
+    # Front camera forehead & Rear louver clearance notches on lower skirt
     skirt -= Pos(52.0, 0.0, 119.8) * Box(14.0, 76.0, 4.5, align=(Align.CENTER, Align.CENTER, Align.MIN))
     skirt -= Pos(-54.0, 0.0, 119.8) * Box(12.0, 38.0, 4.5, align=(Align.CENTER, Align.CENTER, Align.MIN))
+
+    # Cut 1.0mm U-slot flex reliefs on either side of each snap-fit clip
+    for sx_c in SNAP_X:
+        for sy_sign in (-1.0, 1.0):
+            for dx_slot in (-6.3, 6.3):
+                skirt -= Pos(sx_c + dx_slot, sy_sign * 56.8, 120.2) * Box(
+                    1.0, 3.0, 1.9, align=(Align.CENTER, Align.CENTER, Align.MIN)
+                )
     part += skirt
 
-    # 4x Matching Corner Magnet Lugs (Z = 122.05..126.5) fused into dome wall
-    for mx, my in MAG_XY:
-        sx_s = 1.0 if mx > 0 else -1.0
-        sy_s = 1.0 if my > 0 else -1.0
-        m_cyl = Pos(mx, my, Z_NECK + 0.05) * Cylinder(
-            5.4, 4.45, align=(Align.CENTER, Align.CENTER, Align.MIN)
-        )
-        m_web = Pos(mx + sx_s * 5.0, my + sy_s * 5.0, Z_NECK + 0.05) * Box(
-            14.0, 14.0, 4.45, align=(Align.CENTER, Align.CENTER, Align.MIN)
-        )
-        part += (m_cyl + m_web) & outer
-        part -= Pos(mx, my, Z_NECK - 0.2) * Cylinder(
-            3.15, 2.4, align=(Align.CENTER, Align.CENTER, Align.MIN)
-        )
+    # 4x Hidden Cantilever Snap-Fit Clips (X = +-16.0, Y = +-57.3 -> bead crest at |Y| = 58.35)
+    for sx_c in SNAP_X:
+        for sy_sign in (-1.0, 1.0):
+            clip_pts = [
+                (sy_sign * 56.10, 117.85),
+                (sy_sign * 57.10, 117.85),
+                (sy_sign * 58.35, 119.10),
+                (sy_sign * 58.35, 119.55),
+                (sy_sign * 57.30, 120.60),
+                (sy_sign * 57.30, 122.10),
+                (sy_sign * 58.60, 122.10),
+                (sy_sign * 58.60, 123.50),
+                (sy_sign * 56.10, 123.50),
+            ]
+            clip_poly = Polygon(clip_pts, align=None)
+            clip_solid = extrude(Plane.YZ.offset(sx_c) * clip_poly, amount=5.8, both=True)
+            part += clip_solid & outer
+
+    # Rear fingernail pry slot (upper chamfer bevel at X = -58.0, Y in [-8, +8], Z = 122.0..122.7)
+    part -= (
+        Pos(-58.2, 0, 122.0)
+        * Rot(0, 45, 0)
+        * Box(1.6, 16.0, 1.6, align=(Align.CENTER, Align.CENTER, Align.CENTER))
+    )
 
     # Thin apex Ø22mm circular zone to exact 1.0mm thickness (Z = 141.0..142.0) for TTP223 touch!
     part -= Pos(0, 0, 137.0) * Cylinder(

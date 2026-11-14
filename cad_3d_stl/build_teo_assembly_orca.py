@@ -167,7 +167,7 @@ def build_all_items() -> list[AssemblyItem]:
     # GROUP 01: 19 PRINTED ENCLOSURE & MECHANICAL PARTS (01_VO_*)
     # =========================================================================
     items.append(AssemblyItem(
-        "01_VO_01_Mu_Dau_Nam_Cham",
+        "01_VO_01_Mu_Dau_Ngam_SnapFit",
         raw_stl["teo_mu_dau"],
         slot=1,
         xray_transparent=True,

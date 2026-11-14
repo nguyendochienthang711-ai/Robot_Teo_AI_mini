@@ -164,7 +164,7 @@
 * **Khối lượng:** **$4.0\text{ g} \times 2 = 8.0\text{ g}$**.
 
 ### 5.4. Công tắc Nguồn KCD11 — *ĐÃ LOẠI BỎ THEO QUYẾT ĐỊNH NGƯỜI DÙNG*
-* **Trạng thái trong CAD v10:** Đã bỏ công tắc vật lý và bít kín lỗ khoét sườn trái của thân dưới. Thay bằng kẹp gài nhanh giắc `SM-2P` tại `(X = +18.0, Y = +37.2 mm)` ngay dưới mũ đầu nam châm.
+* **Trạng thái trong CAD v10:** Đã bỏ công tắc vật lý và bít kín lỗ khoét sườn trái của thân dưới. Thay bằng kẹp gài nhanh giắc `SM-2P` tại `(X = +18.0, Y = +37.2 mm)` ngay dưới mũ đầu ngàm gài Snap-Fit.
 
 ### 5.5. 2 $\times$ Đầu Kẹp Nối Dây Nhanh Lò Xo CH-2
 * **Kích thước:** **$19.50 \times 17.00 \times 13.00\text{ mm}$**; lỗ bắt ốc giữa $\varnothing 2.5\text{ mm}$.
@@ -182,8 +182,7 @@
 | **3** | Ốc màn hình LCD | `M2.0 × 6 mm` | 4 | Cố định 4 góc màn hình `ST7789 2.0"`. |
 | **4** | Ốc cảm biến IR | `M2.5 × 6 mm` | 3 | Cố định 3 mạch `TCRT5000` dưới sàn gầm. |
 | **5** | Ốc khóa trục Servo | `M2.0 × 5 mm` | 5 | Siết 3 hub bánh `Nexus 14108` + 2 cánh tay vào trục `MG90S`. |
-| **6** | Nam châm Neodymium | `Ø6 × 2 mm` | 8 | 4 cặp nam châm giữ mũ đầu `teo_mu_dau`. |
-| **7** | Đệm nỉ trượt PTFE | `Ø12 × 2 mm` | 2 | Dán 2 bệ chống lật đuôi `(-42, ±36 mm)`. |
+| **6** | Đệm nỉ trượt PTFE | `Ø12 × 2 mm` | 2 | Dán 2 bệ chống lật đuôi `(-42, ±36 mm)`. |
 
 ---
 
@@ -196,7 +195,7 @@
 | **1. Vỏ in 3D (19 mảnh từ 11 file)** | `teo_than_duoi` ($143.9\text{ g}$), `teo_than_tren` ($103.0\text{ g}$), `teo_mu_dau` ($46.5\text{ g}$), `teo_vach_ngan` ($29.2\text{ g}$), `teo_khay_linh_kien` ($16.3\text{ g}$), `teo_kinh_sla` ($8.5\text{ g}$), `teo_nap_hop_loa` ($4.1\text{ g}$), `2× tay + 2× nắp` ($15.2\text{ g}$), `3× hub bánh` ($12.5\text{ g}$), `5× nẹp servo` ($4.7\text{ g}$) | $309.9\text{ cm}^3$ FDM + $7.35\text{ cm}^3$ SLA | **$383.7\text{ g}$** | $5.5 \to 142.0$ |
 | **2. Cụm truyền động gầm** | `3× Bánh Nexus 14108` ($117.0\text{ g}$) + `3× MG90S 360°` ($40.2\text{ g}$) + `3× TCRT5000` ($10.5\text{ g}$) + `LD2410C` + `INMP441` + `2× Đệm đuôi` | 12 cụm | **$173.7\text{ g}$** | $0.0 \to 55.0$ |
 | **3. Khoang giữa & Nguồn** | `Pack Pin 2S 18650` ($95.0\text{ g}$) + `2× MG90S 180°` ($26.8\text{ g}$) + `LCD ST7789` ($16.0\text{ g}$) + `Loa 3W` ($14.5\text{ g}$) + `2× MINI560` ($8.0\text{ g}$) + `2× CH-2` ($5.0\text{ g}$) + `IP2326` ($4.5\text{ g}$) | 10 cụm | **$169.8\text{ g}$** | $57.5 \to 107.0$ |
-| **4. Khay điện tử trên & Vòm đầu** | `ESP32-S3 + Dupont` + `PCA9685 + JR` + `ESP32-CAM OV3660` + `MAX98357A` + `TTP223` + ốc vít & nam châm | 6 cụm | *(đã gộp chuẩn theo khối đặc)* | $89.0 \to 141.0$ |
+| **4. Khay điện tử trên & Vòm đầu** | `ESP32-S3 + Dupont` + `PCA9685 + JR` + `ESP32-CAM OV3660` + `MAX98357A` + `TTP223` + ốc vít | 6 cụm | *(đã gộp chuẩn theo khối đặc)* | $89.0 \to 141.0$ |
 | **TỔNG TOÀN BỘ ROBOT** | **Đầy đủ 19 chi tiết in + toàn bộ linh kiện, bánh đôi Nexus 14108, dây cắm & ốc vít** | — | **$733.1\text{ g}$** | **$\text{CoM}_Z = 61.54\text{ mm}$** |
 
 ### 7.2. Chỉ số Ổn định Tĩnh & Động lực học MuJoCo (Đã Kiểm Chứng 100%)

@@ -13,11 +13,11 @@
 | Hạng mục | Quy chuẩn CAD v10 | Giải thích & Lợi ích thực tế |
 | :--- | :--- | :--- |
 | **Kiểu dáng tổng thể** | **Unibody Chunky Pod ($116 \times 120 \times 142\text{ mm}$)** | Giữ trọn phom viên nang mập mạp bo tròn đáng yêu ($R_{\text{góc}} = 24.0\text{ mm}$, $R_{\text{vòm}} = 21.5\text{ mm}$ chuẩn hình học giải tích $C^1$ `solids=1`), bỏ khớp cổ, xoay toàn thân trên đế Omni. |
-| **Đỉnh vòm đầu từ tính** | **Mũ đầu nam châm tháo nhanh (`Z = 122..142 mm`)** | Khóa bằng **4 cặp nam châm $\varnothing 6 \times 2\text{ mm}$** ở 4 góc. Vùng cảm ứng đỉnh đầu khoét mỏng chính xác **$1.0\text{ mm}$** ($\varnothing 22\text{ mm}$) kèm khung định vị cho cảm biến chạm `TTP223`. |
+| **Đỉnh vòm đầu Snap-Fit** | **Mũ đầu ngàm đàn hồi ẩn tháo nhanh (`Z = 117.85..142 mm`)** | Khóa bằng **4 ngàm gài đàn hồi ẩn (Snap-Fit Clips)** đối xứng ở 2 vách sườn (`X = ±16 mm, Y = ±58 mm`, có khe U đàn hồi & rãnh khóa nội vát $45^\circ$ không cần support) + **rãnh vát mở nhanh bằng móng tay phía sau** (`16 × 1.2 mm` tại `X = -58 mm, Z = 122 mm`) — ấn kêu *"tách"*, không cần nam châm/keo. Vùng cảm ứng đỉnh đầu khoét mỏng **$1.0\text{ mm}$** ($\varnothing 22\text{ mm}$) kèm khung định vị cho `TTP223`. |
 | **Hệ bánh Omni thực tế** | **3 Bánh `Nexus 14108` $\varnothing 48 \times 25.5\text{ mm}$ (2 hàng con lăn)** | Khớp 100% bánh đôi thực tế dày $25.5\text{ mm}$ tại bán kính tâm bánh **$R_{\text{wheel}} = 58.0\text{ mm}$** ($\pm 60^\circ$ phía trước, $180^\circ$ phía sau), kèm **Hub chuyển đổi in 3D** ăn khớp sừng chữ thập `MG90S`. |
 | **Ngàm giữ 5 Servo** | **Rãnh trượt chữ T + Nẹp bắt vít đứng (`Zero-Glue`)** | Thay thế hoàn toàn bệ dán keo cũ bằng hốc chữ T khóa cứng tai servo và **5 thanh nẹp `teo_nep_giu_servo`** siết ốc `M2.5 × 8 mm` từ trên xuống — tháo lắp bảo trì trong 30 giây. |
 | **Khay điện tử `Pin-Up`** | **Đặt ngửa hàng rào chân kim (`ESP32-S3` + `PCA9685`)** | Cả `ESP32-S3 DevKitC-1` và `PCA9685` đặt nằm ngang ngửa chân kim lên trên (`Z = 99..108 mm`), chừa **$34\text{ mm}$ khoảng không thông thoáng** dưới vòm đầu cho đầu cắm dây Dupont & giắc Servo JR (không bị gập cấn dây). |
-| **Quản lý nguồn Không Công Tắc** | **Bỏ công tắc `KCD11` + Kẹp giắc `SM-2P` dưới mũ đầu** | Đóng kín lỗ sườn công tắc cũ; giắc pin `SM-2P` đưa lên kẹp gài nhanh ngay trên khay trên cùng — nhấc mũ đầu nam châm ra là rút/cắm ngắt nguồn vật lý an toàn tức thì. |
+| **Quản lý nguồn Không Công Tắc** | **Bỏ công tắc `KCD11` + Kẹp giắc `SM-2P` dưới mũ đầu** | Đóng kín lỗ sườn công tắc cũ; giắc pin `SM-2P` đưa lên kẹp gài nhanh ngay trên khay trên cùng — bật rãnh sau tháo mũ đầu Snap-Fit ra là rút/cắm ngắt nguồn vật lý an toàn tức thì. |
 | **Mặt nạ & Biểu cảm AI** | **Kính cong 3D SLA + Màn `ST7789 2.0"` + `ESP32-CAM OV3660`** | Bỏ khe LED `WS2812` ở cằm (mặt cằm liền lạc mịn đẹp), thể hiện trạng thái AI qua đôi mắt hoạt hình trên LCD + cử chỉ tay/thân; rãnh trượt ngang giữ chuẩn bo `ESP32-CAM + OV3660` (sau khi tháo đế nạp USB `MB`). |
 
 ---
@@ -26,9 +26,9 @@
 
 ```text
                        ╭───────────────────────────╮
-                       │   MŨ ĐẦU NAM CHÂM (Part 5)│  Z = 142.0 mm (Vách đỉnh mỏng 1.0 mm cho TTP223)
-                       │  4 cặp nam châm Ø6x2 mm   │
-            ╭──────────┴───────────────────────────┴──────────╮ Z = 122.0 mm (Mặt cắt cổ nam châm)
+                       │  MŨ ĐẦU SNAP-FIT (Part 5) │  Z = 142.0 mm (Vách đỉnh mỏng 1.0 mm cho TTP223)
+                       │ 4 ngàm gài ẩn + rãnh sau  │
+            ╭──────────┴───────────────────────────┴──────────╮ Z = 122.0 mm (Mặt cắt cổ ngàm gài)
             │  [Khoảng không cắm dây Dupont/JR cao 34 mm]     │
             │  ═══ KHAY ĐIỆN TỬ PIN-UP (Part 4, Z=99..108) ══ │ • ESP32-S3 + PCA9685 + Kẹp SM-2P + MAX98357A
             │                                                 │ • Rãnh ngang ESP32-CAM OV3660 (Tâm mắt Z=108.0)
@@ -66,7 +66,7 @@
 | :---: | :--- | :---: | :--- | :--- |
 | **1** | [`teo_than_duoi`](file:///C:/Users/Public/Documents/AI_BAITAP/teo_sim_AI/cad_3d_stl/teo_than_duoi.stl) | **1** | FDM (`PETG` / `PLA+`) | Đặt ngửa đáy xuống bàn (`Z_min` chạm bàn). Layer `0.20 mm`, **4 Walls**, Infill `25% Gyroid`, bật **Tree Support (Auto, On build plate only)** đỡ nhẹ đỉnh 3 vòm bánh xe. |
 | **2** | [`teo_vach_ngan`](file:///C:/Users/Public/Documents/AI_BAITAP/teo_sim_AI/cad_3d_stl/teo_vach_ngan.stl) | **1** | FDM (`PETG` / `PLA+`) | Đặt mặt phẳng đáy xuống bàn. Layer `0.20 mm`, 3 Walls, Infill `30%`, **Không cần Support**. |
-| **3** | [`teo_than_tren`](file:///C:/Users/Public/Documents/AI_BAITAP/teo_sim_AI/cad_3d_stl/teo_than_tren.stl) | **1** | FDM (`PLA+` / `PETG`) | Đặt mặt cắt eo phẳng xuống bàn. Toàn bộ gân tai nam châm, bệ khay, gá tay và bầu loa đã vát $45^\circ$; chỉ bật **Tree Support (On build plate only)** cho khung cửa sổ LCD & vòm mặt. |
+| **3** | [`teo_than_tren`](file:///C:/Users/Public/Documents/AI_BAITAP/teo_sim_AI/cad_3d_stl/teo_than_tren.stl) | **1** | FDM (`PLA+` / `PETG`) | Đặt mặt cắt eo phẳng xuống bàn. Toàn bộ rãnh ngàm gài Snap-Fit, bệ khay, gá tay và bầu loa đã vát $45^\circ$; chỉ bật **Tree Support (On build plate only)** cho khung cửa sổ LCD & vòm mặt. |
 | **4** | [`teo_khay_linh_kien`](file:///C:/Users/Public/Documents/AI_BAITAP/teo_sim_AI/cad_3d_stl/teo_khay_linh_kien.stl) | **1** | FDM (`PLA+` / `PETG`) | Đặt ngửa hoặc lật úp mặt sàn khay xuống bàn kèm Tree Support nhỏ cho gờ kẹp `MAX98357A`. Layer `0.20 mm`, 3 Walls, Infill `25%`. |
 | **5** | [`teo_mu_dau`](file:///C:/Users/Public/Documents/AI_BAITAP/teo_sim_AI/cad_3d_stl/teo_mu_dau.stl) | **1** | FDM (`PLA+` / `PETG`) | Đặt miệng cắt cổ xuống bàn (hoặc lật đỉnh vòm kèm Variable Layer Height `0.12 mm` ở đỉnh). Vùng trung tâm đỉnh dày đúng `1.0 mm` (5 lớp `0.20 mm`) cho cảm ứng `TTP223`. |
 | **6** | [`teo_kinh_sla`](file:///C:/Users/Public/Documents/AI_BAITAP/teo_sim_AI/cad_3d_stl/teo_kinh_sla.stl) | **1** | **SLA Clear Resin** *(hoặc FDM PETG trong)* | In SLA nghiêng $35^\circ$, layer `0.05 mm`, đánh nhám nước `P1000 → P3000`, phủ 1 lớp mỏng sơn bóng khói **Tamiya TS-71 Smoke Black** (che lỗ camera $\varnothing 6.5\text{ mm}$ khi xịt). |
@@ -87,6 +87,5 @@
 | **3** | Ốc bắt màn hình LCD ST7789 | `M2.0 × 6 mm` | **4 con** | Bắt 4 góc bo `ST7789 2.0"` vào 4 trụ mặt trong `teo_than_tren`. |
 | **4** | Ốc cảm biến IR chống rơi | `M2.5 × 6 mm` *(hoặc `M3 × 6 mm`)* | **3 con** | Bắt 3 bo `TCRT5000` lên 3 cọc góc $0^\circ, \pm 120^\circ$ dưới sàn gầm. |
 | **5** | Ốc giữ sừng trục Servo | `M2.0 × 5 mm` *(có sẵn trong túi MG90S)* | **5 con** | Khóa 3 hub bánh `Nexus 14108` và 2 cánh tay `teo_tay_robot` vào trục 5 servo `MG90S`. |
-| **6** | Nam châm đất hiếm Neodymium | Tròn `Ø6 × 2 mm` (N35/N52) | **8 viên** | Dán keo 502/B-7000 đúng chiều cực vào 4 góc cổ `teo_than_tren` & `teo_mu_dau`. |
-| **7** | Đệm nỉ chống lật đuôi | Tròn `Ø12 × 2.0 mm` (nỉ PTFE trượt êm) | **2 miếng** | Dán vào 2 hốc tròn âm dưới đáy đuôi `(-42.0, ±36.0 mm)`. |
-| **8** | Mút xốp EVA đen & Keo B-7000 | EVA dày `1.0 mm` + Tuýp B-7000 `15 ml` | **1 bộ** | Đệm kín lỗ mic `INMP441`, rãnh gioăng `teo_nap_hop_loa`, và dán kính `teo_kinh_sla`. |
+| **6** | Đệm nỉ chống lật đuôi | Tròn `Ø12 × 2.0 mm` (nỉ PTFE trượt êm) | **2 miếng** | Dán vào 2 hốc tròn âm dưới đáy đuôi `(-42.0, ±36.0 mm)`. |
+| **7** | Mút xốp EVA đen & Keo B-7000 | EVA dày `1.0 mm` + Tuýp B-7000 `15 ml` | **1 bộ** | Đệm kín lỗ mic `INMP441`, rãnh gioăng `teo_nap_hop_loa`, và dán kính `teo_kinh_sla`. |
